@@ -1329,7 +1329,6 @@ class TrainerInstSegmentation(nn.Module):
         if hvd.rank() == 0:
             torch.save(self.model.state_dict(), os.path.join(self.model_dir, "REIN_init_saved_model.pth"))
             torch.save(self.model_B.state_dict(), os.path.join(self.model_dir_B, "REIN_init_saved_model.pth"))
-
         ''' GET baseline loss dict (no loss is selected in baseline loss dict) '''
 
         baseline_loss_dict = []

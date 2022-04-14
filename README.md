@@ -134,15 +134,21 @@ All data should be put under the folder `data`.
 
 ### Mobility-based part segmentation
 
-For the mobility-based part segmentation task, we collect the training dataset and the auxiliary training dataest from [1,2] respectively. We infer mobility meta-data heuristically for parts in each shape. Original datasets can be downloaded from [ShapeNetPart](https://shapenet.cs.stanford.edu/ericyi/shapenetcore_partanno_v0.zip) and [PartNet](https://www.shapenet.or).
+We collect the training dataset and the auxiliary training dataset from [1,2] for the mobility-based part segmentation task. We infer mobility meta-data heuristically for parts in each shape. Original datasets can be downloaded from [ShapeNetPart](https://shapenet.cs.stanford.edu/ericyi/shapenetcore_partanno_v0.zip) and [PartNet](https://www.shapenet.or).
 
-The test dataset is the same as the one use in [3] (could be download via [PartMob](https://shapenet.cs.stanford.edu/ericyi/pretrained_model_partmob.zip)). To spare time, we use the trained flow estimation model to estimate flow for each shape and save the data with coordinate information. During the inference, we directly use the estimated flow.
+The test dataset is the same as the one used in [3] (which could be downloaded via [PartMob](https://shapenet.cs.stanford.edu/ericyi/pretrained_model_partmob.zip)). We use the trained flow estimation model to estimate flow for each shape and save the data with coordinate information for spare time. During the inference, we directly use the estimated flow.
 
 ### Primitive fitting
 
 We use the same dataset as the one used in [4]. We re-split the dataset to better test the domain generalization ability of the model.
 
 The dataset can be downloaded via [Traceparts](https://www.traceparts.com/) (original version). Put the file under `data/` folder and unzip it.
+
+## Unsolved Problems
+
+- ***Unfriendly operations***: Sometimes the model will sample operations which would result in a supervision feature with very large absolute values. It would scarcely hinder the optimization process (since such supervisions would cause low metric values; thus, the model using them will not be passed to the next step), making the optimization process ugly. 
+
+  The problem could probably be solved by forbidding certain operation combinations/sequences. Feel free to submit a pull request if you can solve it. 
 
 ## Reference
 

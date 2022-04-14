@@ -22,7 +22,7 @@ use_dgcnn:  Ture
 dgcnn_layers: 3
 backbone: "DGCNN"
 input_normal: True
-#debug: True # 
+#debug: True #
 debug: False
 debug_arch:  False
 
