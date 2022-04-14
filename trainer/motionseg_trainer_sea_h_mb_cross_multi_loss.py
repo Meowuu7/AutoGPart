@@ -1,15 +1,15 @@
 import torch
 import torch.nn as nn
-from model.pointnetpp_segmodel_sea import PointNetPPInstSeg
-from model.primitive_fitting_net_sea import PrimitiveFittingNet
+# from model.pointnetpp_segmodel_sea import PointNetPPInstSeg
+# from model.primitive_fitting_net_sea import PrimitiveFittingNet
 # from model.pointnetpp_segmodel_cls_sea import InstSegNet
 # from model.pointnetpp_segmodel_cls_sea_v2 import InstSegNet
 from model.motion_segmodel_cls_sea_v2 import InstSegNet
 
 # from datasets.Indoor3DSeg_dataset import Indoor3DSemSeg
-from datasets.instseg_dataset import InstSegmentationDataset
-from datasets.ABC_dataset import ABCDataset
-from datasets.ANSI_dataset import ANSIDataset
+# from datasets.instseg_dataset import InstSegmentationDataset
+# from datasets.ABC_dataset import ABCDataset
+# from datasets.ANSI_dataset import ANSIDataset
 from datasets.motionseg_dataset import PartSegmentationMetaInfoDataset
 from torch.nn import functional as F
 
@@ -22,14 +22,14 @@ import torch.multiprocessing as mp
 from filelock import FileLock
 import time
 import numpy as np
-from model.utils import batched_index_select, calculate_acc
-from .trainer_utils import MultiMultinomialDistribution
+# from model.utils import batched_index_select, calculate_acc
+# from .trainer_utils import MultiMultinomialDistribution
 import logging
 from model.loss_model_v5 import ComputingGraphLossModel
 from .trainer_utils import get_masks_for_seg_labels, compute_param_loss, DistributionTreeNode, DistributionTreeNodeV2, DistributionTreeNodeArch
-from datasets.partnet_dataset import PartNetInsSeg
-from model.loss_utils import get_one_hot
-from model.model_util import set_bn_not_training, set_grad_to_none
+# from datasets.partnet_dataset import PartNetInsSeg
+# from model.loss_utils import get_one_hot
+# from model.model_util import set_bn_not_training, set_grad_to_none
 
 class TrainerInstSegmentation(nn.Module):
     def __init__(self, dataset_root, num_points=512, batch_size=32, num_epochs=200, cuda=None, dataparallel=False,
@@ -42,13 +42,12 @@ class TrainerInstSegmentation(nn.Module):
             self.device = torch.device("cuda:" + str(cuda)) if torch.cuda.is_available() else torch.device("cpu")
         else:
             self.device = torch.device("cpu")
-        ''' SET horovod configurations '''
+        ''' SET some basic configurations '''
         hvd.init()
         torch.cuda.set_device(hvd.local_rank())
 
         if hvd.size() > 1:
             torch.set_num_threads(5)
-
             kwargs = {'num_workers': 5, 'pin_memory': True}
         else:
             kwargs = {}
@@ -58,7 +57,7 @@ class TrainerInstSegmentation(nn.Module):
                 mp._supports_context and 'forkserver' in mp.get_all_start_methods()):
             kwargs['multiprocessing_context'] = 'forkserver'
         self.kwargs = kwargs
-        ''' SET horovod configurations '''
+        ''' SET some basic configurations '''
 
         ''' SET arguments '''
         self.args = args
@@ -80,7 +79,7 @@ class TrainerInstSegmentation(nn.Module):
         self.sea_interval = self.args.sea_interval
 
         # number of added intermediate losses
-        self.nn_inter_loss = self.args.nn_inter_loss
+        self.nn_inter_loss = self.args.nn_inter_loss # 1
 
         n_samples = self.args.n_samples.split(",")
         self.n_samples = [int(ns) for ns in n_samples]
@@ -95,7 +94,6 @@ class TrainerInstSegmentation(nn.Module):
         ''' GET model & loss selection parameters '''
         conv_select_types = self.args.conv_select_types.split(",")
         self.conv_select_types = [int(tt) for tt in conv_select_types]
-        # self.conv_select_types = [0,0,1] # [0,0,0]
         self.point_feat_selection = int(self.args.point_feat_selection)
         self.point_geo_feat_selection = int(self.args.point_geo_feat_selection)
         # print(self.args.contrast_selection)
@@ -119,7 +117,6 @@ class TrainerInstSegmentation(nn.Module):
             str(True if len(resume) > 0 else False)
         )
         self.model_dir_B = self.model_dir + "_B"
-
         with FileLock(os.path.expanduser("~/.horovod_lock")):
             if not os.path.exists("./prm_cache"):
                 os.mkdir("./prm_cache")
@@ -131,7 +128,7 @@ class TrainerInstSegmentation(nn.Module):
         self.model_dir_B = "./prm_cache/" + self.model_dir_B
         ''' SET working dirs '''
 
-        ''' SET working dir for loss model '''
+        ''' SET working dir for the loss model '''
         self.loss_model_save_path = os.path.join(self.model_dir, "loss_model")
         self.loss_model_save_path_B = os.path.join(self.model_dir_B, "loss_model")
         with FileLock(os.path.expanduser("~/.horovod_lock")):
@@ -150,8 +147,7 @@ class TrainerInstSegmentation(nn.Module):
 
             if not os.path.exists(self.loss_model_save_path_B):
                 os.mkdir(self.loss_model_save_path_B)
-
-        ''' SET working dir for loss model '''
+        ''' SET working dir for the loss model '''
 
         ''' GET model '''
         self.args.lr_scaler = hvd.size()
@@ -178,7 +174,7 @@ class TrainerInstSegmentation(nn.Module):
         # self.dataparallel = dataparallel and torch.cuda.is_available() and torch.cuda.device_count() > 1
         ''' GET model '''
 
-        ''' SET datasets & data-loaders & data-samplers '''
+        ''' Set datasets '''
         # DATASET ROOT & NUMBER OF MASKS
         self.dataset_root = self.args.dataset_root
         self.nmasks = int(self.args.pred_nmasks)
@@ -188,7 +184,6 @@ class TrainerInstSegmentation(nn.Module):
         self.val_dataset = self.args.val_dataset
         self.test_dataset = self.args.test_dataset
 
-        # DATA-SPLITTING configurations
         self.split_type = self.args.split_type
         self.split_train_test = self.args.split_train_test
 
@@ -198,13 +193,14 @@ class TrainerInstSegmentation(nn.Module):
         self.pure_test_types = [str(tpt) for tpt in pure_test_types]
         ### GET test data-types for all categories in test setting ####
 
-        # TRAIN & VAL & TEST PartNet types
+        # TRAIN & VAL & TEST PartNet types # for inst-seg only
         partnet_train_types = self.args.partnet_train_types.split(";")
         self.partnet_train_types = [str(tpt) for tpt in partnet_train_types]
         partnet_val_types = self.args.partnet_val_types.split(";")
         self.partnet_val_types = [str(tpt) for tpt in partnet_val_types]
         partnet_test_types = self.args.partnet_test_types.split(";")
         self.partnet_test_types = [str(tpt) for tpt in partnet_test_types]
+        # TRAIN & VAL & TEST PartNet types # for inst-seg only
 
         #
         train_prim_types = self.args.train_prim_types.split(",")
@@ -221,7 +217,6 @@ class TrainerInstSegmentation(nn.Module):
         self.partnet_test_types = ['Scissors', 'Faucet', 'Door Set', 'Lamp']
 
         with FileLock(os.path.expanduser("~/.horovod_lock")):
-
             self.train_set = PartSegmentationMetaInfoDataset(
                 root=self.dataset_root, split='train', npoints=512, nmask=args.nmasks, relrot=True,
                 load_file_name="tot_part_motion_meta_info.npy",
@@ -258,9 +253,10 @@ class TrainerInstSegmentation(nn.Module):
                     shape_types=self.partnet_test_types,
                     split_data=None, part_net_seg=True, partnet_split=False, args=args # True
                 )
+        print("Loaded")
+        ''' Set datasets '''
 
-        print("Loaded...")
-
+        ''' Set dataset samplers '''
         self.train_sampler = torch.utils.data.distributed.DistributedSampler(
             self.train_set, num_replicas=hvd.size(), rank=hvd.rank())
 
@@ -273,7 +269,9 @@ class TrainerInstSegmentation(nn.Module):
 
             self.partnet_val_sampler = torch.utils.data.distributed.DistributedSampler(
                 self.partnet_test_set, num_replicas=hvd.size(), rank=hvd.rank())
+        ''' Set dataset samplers '''
 
+        ''' Set dataloaders '''
         self.train_loader = data.DataLoader(
             self.train_set, batch_size=self.batch_size,
             sampler=self.train_sampler, **kwargs)
@@ -290,7 +288,7 @@ class TrainerInstSegmentation(nn.Module):
             self.partnet_val_loader = data.DataLoader(
                 self.partnet_test_set, batch_size=self.batch_size,
                 sampler=self.partnet_val_sampler, **kwargs)
-        ''' SET datasets & data-loaders & data-samplers '''
+        ''' Set dataloaders '''
 
         ''' SET optimizers '''
         lr_scaler = hvd.size()
@@ -304,7 +302,8 @@ class TrainerInstSegmentation(nn.Module):
             lr=self.init_lr * lr_scaler,
             betas=(0.9, 0.999),
             eps=1e-08,
-            weight_decay=self.weight_decay)
+            weight_decay=self.weight_decay
+        )
 
         self.optimizer = hvd.DistributedOptimizer(
             self.optimizer,
@@ -613,8 +612,12 @@ class TrainerInstSegmentation(nn.Module):
 
                 batch_flow = batch_data['flow12']
                 batch_momasks = batch_data['motion_seg_masks']
+
+
+
                 #
                 batch_inst_seg = torch.argmax(batch_momasks, dim=-1) # assume momask.size = bz x N x nmasks
+                # print(f"flow: {batch_flow.size()}, masks: {batch_momasks.size()}, batch_inst_seg: {batch_inst_seg.size()}")
 
                 cur_batch_nn_seg = self.get_nn_segmentations(batch_inst_seg)
 
@@ -659,6 +662,8 @@ class TrainerInstSegmentation(nn.Module):
 
                     batch_momasks = batch_momasks
 
+                    # print(f"seg_pred: {seg_pred.size()}, batch_momasks: {batch_momasks.size()}, batch_conf: {batch_conf.size()}")
+
                     # try:
                     iou_value, gt_conf, cur_avg_recall = iou(seg_pred, batch_momasks, batch_conf)
                     iou_value = iou_value.mean()
@@ -684,8 +689,6 @@ class TrainerInstSegmentation(nn.Module):
                 neg_iou_loss = -1.0 * iou_value
 
                 loss += neg_iou_loss
-
-                # print(loss, gt_l)
 
                 if self.args.add_intermediat_loss:
                     loss += gt_l.mean()
@@ -730,9 +733,6 @@ class TrainerInstSegmentation(nn.Module):
                         float(sum(avg_recall) / sum(loss_nn)),
                         float(float(sum(tot_seg_nns)) / float(sum(loss_nn))),
                 ))
-
-        # print("all saved")
-        # return 0, 0
 
         avg_loss = float(sum(loss_list)) / float(sum(loss_nn))
         avg_gt_loss = float(sum(gt_loss)) / float(sum(loss_nn))
@@ -819,7 +819,7 @@ class TrainerInstSegmentation(nn.Module):
                 if batch_pos.size(0) == 1:
                     continue
                 if batch_pos.size(-1) > 3:
-                    batch_pos = batch_pos[:, :, :3]
+                    batch_pos = batch_pos[..., :3]
 
                 batch_pos = batch_pos.float().cuda()
                 batch_inst_seg = batch_inst_seg.long().cuda()
@@ -959,7 +959,7 @@ class TrainerInstSegmentation(nn.Module):
     def save_model(self, epoch):
         torch.save(self.model.state_dict(), os.path.join(self.model_dir, "checkpoint_current.pth".format(epoch)))
 
-    ''' SEARCH LOSS '''
+    ''' SEARCH supervisions '''
     def rein_train_search_loss(
         self, base_epoch,
         base_arch_select_type,  # a list of selected baseline architecture
@@ -978,7 +978,6 @@ class TrainerInstSegmentation(nn.Module):
             rewards = []
             sampled_loss_dicts = []
             for i_model in range(n_models_per_eps):
-
                 # cur_selected_loss_dict = self.sample_intermediate_representation_generation()
                 cur_selected_loss_dict_list = self.sample_intermediate_representation_generation_k_list(
                     k=self.nn_inter_loss, baseline=False)
@@ -1223,7 +1222,7 @@ class TrainerInstSegmentation(nn.Module):
 
         return final_baseline, final_baseline_loss_dict
 
-    def beam_searh_for_best(self, base_dict=[], max_nn=3, keep_nn=2, conv_select_types=[0, 0, 0]):
+    def greedy_search(self, base_dict=[], max_nn=3, keep_nn=2, conv_select_types=[0, 0, 0]):
         unary_aa = []
         unary_bb = []
 
@@ -1320,7 +1319,7 @@ class TrainerInstSegmentation(nn.Module):
 
         if self.args.beam_search:
             baseline_value = torch.tensor([1, 1, 0], dtype=torch.long)
-            rt_dicts = self.beam_searh_for_best(base_dict=[], max_nn=3, keep_nn=2, conv_select_types=baseline_value.tolist())
+            rt_dicts = self.greedy_search(base_dict=[], max_nn=3, keep_nn=2, conv_select_types=baseline_value.tolist())
             print(rt_dicts)
             return
 
@@ -1345,6 +1344,7 @@ class TrainerInstSegmentation(nn.Module):
         ''' LOAD model '''
         if self.args.resume != "":
             logging.info(f"Loading model from {self.args.resume}")
+            # resume
             ori_dict = torch.load(os.path.join(self.args.resume, "REIN_best_saved_model.pth"), map_location='cpu')
             part_dict = dict()
             model_dict = self.model.state_dict()
@@ -1387,7 +1387,8 @@ class TrainerInstSegmentation(nn.Module):
             train_acc, train_gt_loss = self._train_one_epoch(
                 i_iter + 1,
                 conv_select_types=baseline_value.tolist(),
-                loss_selection_dict=baseline_loss_dict, desc="train",
+                loss_selection_dict=baseline_loss_dict,
+                desc="train",
                 cur_model=self.model,
                 cur_loaders=[self.train_loader],
                 cur_samplers=[self.train_sampler],
@@ -1415,7 +1416,6 @@ class TrainerInstSegmentation(nn.Module):
                 cur_samplers=[self.partnet_train_sampler],
                 cur_optimizer=self.optimizer_B
             )
-            # return
 
             # if not self.test_performance:
             val_acc, val_gt_loss = self._test(
@@ -1439,12 +1439,9 @@ class TrainerInstSegmentation(nn.Module):
         base_model_select_arch_types = baseline_value.tolist()
 
         for i_eps in range(tot_eps):
-
-
-            ''' Loss search '''
+            ''' Supervision search '''
             baseline, baseline_loss_dict = self.rein_train_search_loss(
                 base_epoch=base_epoch, base_arch_select_type=base_model_select_arch_types, baseline=baseline
             )
-
             base_epoch += each_search_epochs
-            ''' Loss search '''
+            ''' Supervision search '''

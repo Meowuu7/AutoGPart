@@ -10,7 +10,7 @@ This repository contains PyTorch implementation of our paper:
 
 ## Links
 
-- [Project Page](https://autogpart.github.io)
+- [Project Page](https://autogpart.github.io) (including videos, visualizations for searched intermediate supervisions and segmentations)
 - [arXiv Page](https://arxiv.org/abs/2203.06558)
 
 ## Environment and package dependency
@@ -30,7 +30,7 @@ h5py==2.8.0
 
 ### Mobility-based part segmentation
 
-To optimize the supervision distribution space for the mobility-based part segmentation task, please use the following command:
+To optimize the supervision distribution space for the mobility-based part segmentation task, please use the following command (single machine):
 
 ```shell
 CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/motion_seg_h_mb_cross.yaml

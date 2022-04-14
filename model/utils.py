@@ -186,37 +186,39 @@ def iou(pred_x, gt_x, gt_conf, nsmp=128, nmask=10, pred_conf=None, tch=True):
     matching_idx_colum = matching_idx[:, :, 1]
 
 
-    with torch.no_grad():
-        # pred_x.size = bz x nmasks x N
-        hard_pred_x = get_hard_pred_res(pred_x)
-        # hard_pred_x = pred_x
-        matching_sc = torch.matmul(gt_x, hard_pred_x.contiguous().transpose(1, 2))
-        matching_sc = torch.div(matching_sc,
-                                torch.sum(gt_x, dim=-1, keepdim=True) +
-                                    torch.sum(hard_pred_x, dim=-1, keepdim=False).unsqueeze(
-                                        -2) - matching_sc + 1e-8)
-        matching_sc = torch.clamp(matching_sc, min=0)
-        # bz x nmasks
-        matching_sc = batched_index_select(matching_sc, matching_idx_row, dim=1)
-        matching_sc = batched_index_select(matching_sc, matching_idx_colum, dim=-1)
-        max_matching_sc = matching_sc
-        thr = 0.5
-        avg_tot_recall = 0.0
-        tot_step = 0
-        # thr_to_recall = {}
-        # record_iou = {0.5: 1, 0.7: 1, 0.9: 1}
-        while thr < 0.96:
-            cur_recalled_indicator = (max_matching_sc >= thr).float()
-            cur_recalled_nn = torch.sum(cur_recalled_indicator * gt_conf, dim=-1) / torch.clamp(
-                torch.sum(gt_conf, dim=-1), min=1e-9)
-            avg_cur_recall = torch.mean(cur_recalled_nn).item()
-            avg_tot_recall += avg_cur_recall
-            # if abs(thr - 0.5) < 0.025 or abs(thr - 0.7) < 0.025 or abs(thr - 0.9) < 0.025:
-            #     thr_to_recall[thr] = avg_cur_recall
-            tot_step += 1
-            thr += 0.05
-        cur_avg_recall = avg_tot_recall / float(tot_step)
+    # with torch.no_grad():
+    #     # pred_x.size = bz x nmasks x N
+    #     hard_pred_x = get_hard_pred_res(pred_x)
+    #     # hard_pred_x = pred_x
+    #     matching_sc = torch.matmul(gt_x, hard_pred_x.contiguous().transpose(1, 2))
+    #     matching_sc = torch.div(matching_sc,
+    #                             torch.sum(gt_x, dim=-1, keepdim=True) +
+    #                                 torch.sum(hard_pred_x, dim=-1, keepdim=False).unsqueeze(
+    #                                     -2) - matching_sc + 1e-8)
+    #     matching_sc = torch.clamp(matching_sc, min=0)
+    #     # bz x nmasks
+    #
+    #     matching_sc = batched_index_select(matching_sc, matching_idx_row, dim=1)
+    #     matching_sc = batched_index_select(matching_sc, matching_idx_colum, dim=-1)
+    #     max_matching_sc = matching_sc
+    #     thr = 0.5
+    #     avg_tot_recall = 0.0
+    #     tot_step = 0
+    #     # thr_to_recall = {}
+    #     # record_iou = {0.5: 1, 0.7: 1, 0.9: 1}
+    #     while thr < 0.96:
+    #         cur_recalled_indicator = (max_matching_sc >= thr).float()
+    #         cur_recalled_nn = torch.sum(cur_recalled_indicator * gt_conf, dim=-1) / torch.clamp(
+    #             torch.sum(gt_conf, dim=-1), min=1e-9)
+    #         avg_cur_recall = torch.mean(cur_recalled_nn).item()
+    #         avg_tot_recall += avg_cur_recall
+    #         # if abs(thr - 0.5) < 0.025 or abs(thr - 0.7) < 0.025 or abs(thr - 0.9) < 0.025:
+    #         #     thr_to_recall[thr] = avg_cur_recall
+    #         tot_step += 1
+    #         thr += 0.05
+    #     cur_avg_recall = avg_tot_recall / float(tot_step)
 
+    cur_avg_recall = 0.0
     pred_x_matched = batched_index_select(pred_x, matching_idx_colum, dim=1)
 
     matching_score = torch.sum(gt_x_matched * pred_x_matched, dim=2)

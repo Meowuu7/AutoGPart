@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from .pnmem_cell import DynamicRNN
+# from .pnmem_cell import DynamicRNN
 from .utils import farthest_point_sampling, batched_index_select, get_knn_idx
 from .model_util import construct_conv1d_modules, construct_conv_modules, CorrFlowPredNet
 import torch.nn.functional as F
@@ -9,17 +9,17 @@ import torch.nn.functional as F
 # from .loss_model_v3 import ComputingGraphLossModel as ComputingGraphLossModel_v3
 # from .loss_model_v4 import ComputingGraphLossModel as ComputingGraphLossModel_v4
 from .loss_model_v5 import ComputingGraphLossModel as ComputingGraphLossModel_v5
-from model.utils import iou, mean_shift, labels_to_one_hot_labels
-from torch.autograd import Variable
+# from model.utils import iou, mean_shift, labels_to_one_hot_labels
+# from torch.autograd import Variable
 
 from .UNet_universal import UNet as UiUNet
 from scipy.optimize import linear_sum_assignment
-from .point_convolution_universal import LocalConvNet, EdgeConv
+# from .point_convolution_universal import LocalConvNet, EdgeConv
 from .Poinetnet2 import PointnetPP
 from .DGCNN import PrimitiveNet
 from .UniConvNet import UniConvNet
 from .mixstyle import MixStyle
-from model.model_util import estimate_normals
+# from model.model_util import estimate_normals
 
 import os
 import numpy as np

@@ -1,24 +1,24 @@
 import torch
 import torch.nn as nn
-from .pnmem_cell import DynamicRNN
+# from .pnmem_cell import DynamicRNN
 from .utils import farthest_point_sampling, batched_index_select, get_knn_idx
 from .model_util import construct_conv1d_modules, construct_conv_modules, CorrFlowPredNet
-import torch.nn.functional as F
+# import torch.nn.functional as F
 # from .loss_model import ComputingGraphLossModel
 # from .loss_model_v2 import ComputingGraphLossModel as ComputingGraphLossModel_v2
 # from .loss_model_v3 import ComputingGraphLossModel as ComputingGraphLossModel_v3
 # from .loss_model_v4 import ComputingGraphLossModel as ComputingGraphLossModel_v4
 from .loss_model_v5 import ComputingGraphLossModel as ComputingGraphLossModel_v5
-from model.utils import iou, mean_shift, labels_to_one_hot_labels
-from torch.autograd import Variable
+# from model.utils import iou, mean_shift, labels_to_one_hot_labels
+# from torch.autograd import Variable
 
 from .UNet_universal import UNet as UiUNet
 from scipy.optimize import linear_sum_assignment
-from .point_convolution_universal import LocalConvNet, EdgeConv
+# from .point_convolution_universal import LocalConvNet, EdgeConv
 from .Poinetnet2 import PointnetPP
 from .DGCNN import PrimitiveNet
 from .UniConvNet import UniConvNet
-from model.model_util import estimate_normals
+# from model.model_util import estimate_normals
 
 import os
 import numpy as np
@@ -123,14 +123,15 @@ class InstSegNet(nn.Module):
 
         ''' CONSTRUCT intermediate loss calculation network '''
         if self.in_model_loss_model and self.add_intermediat_loss:
-            self.intermediate_loss = ComputingGraphLossModel_v5(pos_dim=3, pca_feat_dim=64, in_feat_dim=64, pp_sim_k=16, r=0.03,
-                                                  lr_scaler=args.lr_scaler, init_lr=float(args.init_lr),
-                                                  weight_decay=float(args.weight_decay),
-                                                  loss_model_save_path=args.loss_model_save_path,
-                                                  in_rep_dim=self.rep_dim,
-                                                  nn_inter_loss=args.nn_inter_loss,
-                                                  args=args
-                                                  )
+            self.intermediate_loss = ComputingGraphLossModel_v5(
+                pos_dim=3, pca_feat_dim=64, in_feat_dim=64, pp_sim_k=16, r=0.03,
+                lr_scaler=args.lr_scaler, init_lr=float(args.init_lr),
+                weight_decay=float(args.weight_decay),
+                loss_model_save_path=args.loss_model_save_path,
+                in_rep_dim=self.rep_dim,
+                nn_inter_loss=args.nn_inter_loss,
+                args=args
+            )
 
         ''' CONSTRUCT intermediate loss calculation network '''
         # self.conv_uniunet_bf_cluster = UiUNet(
@@ -181,12 +182,9 @@ class InstSegNet(nn.Module):
         #     [map_feat_dim, map_feat_dim // 2, self.mask_dim], n_in=map_feat_dim, last_act=False, bn=False
         # )
 
-        # todo: if using less masks?
-
         # self.mode_pred = DynamicRNN(nmasks=self.mask_dim)
 
         # nmasks = 24
-        # todo: if we remove `bn` in the cls_layer?
         ''' SET number of masks for segmentations to predict '''
         nmasks = self.args.pred_nmasks
         ''' SET classification layers for top-down segmentation proposal '''
@@ -240,189 +238,6 @@ class InstSegNet(nn.Module):
         #     [glb_feat_dim, glb_feat_dim // 2, self.mask_dim],
         #     n_in=glb_feat_dim, last_act=False, bn=False
         # )
-
-    def generate_feature_discrepancy(self, nearest_k_idx, nearest_k_dist, features, fps_idx, r=0.05):
-        nearest_k_indicators = (nearest_k_dist <= r).float()
-        print(torch.mean(torch.sum(nearest_k_indicators, dim=-1)))
-        nearest_k_features = batched_index_select(features, indices=nearest_k_idx, dim=1)
-        # bz x N x k x feat_dim
-        # bz x N x k
-        nearest_k_features_avg = (torch.sum(nearest_k_features * nearest_k_indicators.unsqueeze(-1), dim=2)) / \
-                                 (torch.sum(nearest_k_indicators.unsqueeze(-1), dim=2))
-        # # need not to consider the situation of zero... since the point at least connects wth itself
-        # bz x N x faet_dim
-        bz, N, nsmp = features.size(0), features.size(1), nearest_k_idx.size(1)
-        features_sub = features.contiguous().view(bz * N, -1)[fps_idx, :].view(bz, nsmp, -1)
-        nearest_k_discrepancy = features_sub - nearest_k_features_avg
-        return nearest_k_discrepancy
-
-    def generate_feature_sim(self, nearest_k_idx, nearest_k_dist, features, fps_idx, r=0.03):
-        bz, N, nsmp = features.size(0), features.size(1), nearest_k_idx.size(1)
-        nearest_k_indicators = (nearest_k_dist <= r).float()
-        print(torch.mean(torch.sum(nearest_k_indicators, dim=-1)))
-        nearest_k_features = batched_index_select(features, indices=nearest_k_idx, dim=1)
-        # bz x nsmp x k x feat_dim
-        nearest_k_features_split = [nearest_k_features[:, :, :, :3], nearest_k_features[:, :, :, 3:]]
-        features_sub = features.contiguous().view(bz * N, -1)[fps_idx, :].view(bz, nsmp, -1)
-        features_sub_split = [features_sub[:, :, :3], features_sub[:, :, 3:]]
-        # # inner_prod =
-        inner_prod_avgs = []
-        for nearest_k_feat, feat_sub in zip(nearest_k_features_split, features_sub_split):
-            cur_inner_prod = torch.sum(feat_sub.unsqueeze(2) * nearest_k_feat, dim=-1) / \
-                             (torch.clamp(torch.norm(feat_sub.unsqueeze(2), dim=-1, p=2) * torch.norm(nearest_k_feat, dim=-1, p=2), min=1e-9))
-            cur_inner_prod_avg = torch.mean(cur_inner_prod, dim=-1, keepdim=True)
-            inner_prod_avgs.append(cur_inner_prod_avg)
-        inner_prod_avgs = torch.cat(inner_prod_avgs, dim=-1)
-        # # bz x nsmp x 2
-        return inner_prod_avgs
-
-    def generate_feature_cross_prod(self, nearest_k_idx, nearest_k_dist, features, fps_idx, r=0.03):
-        bz, N, nsmp = features.size(0), features.size(1), nearest_k_idx.size(1)
-        nearest_k_indicators = (nearest_k_dist <= r).float()
-        print(torch.mean(torch.sum(nearest_k_indicators, dim=-1)))
-        nearest_k_features = batched_index_select(features, indices=nearest_k_idx, dim=1)
-        # # here only `pos` features are reasonable
-        # # bz x nsmp x feat_dim
-        features_sub = features.contiguous().view(bz * N, -1)[fps_idx].view(bz, nsmp, -1)
-        features_minus = nearest_k_features - features_sub.unsqueeze(2)
-        # # # bz x nsmp x feat_dim
-        feat_x, feat_y, feat_z = features_sub[:, :, 0], features_sub[:, :, 1], features_sub[:, :, 2]
-        nk_feat_x, nk_feat_y, nk_feat_z = nearest_k_features[:, :, :, 0], nearest_k_features[:, :, :, 1], nearest_k_features[:, :, :, 2]
-        # # # feat_x.size = bz x nsmp
-        cross_x = feat_y.unsqueeze(-1) * nk_feat_z - feat_z.unsqueeze(-1) * nk_feat_y
-        cross_y = feat_z.unsqueeze(-1) * nk_feat_x - feat_x.unsqueeze(-1) * nk_feat_z
-        cross_z = feat_x.unsqueeze(-1) * nk_feat_y - feat_y.unsqueeze(-1) * nk_feat_x
-        # # bz x nsmp x k
-        cross_prod = torch.cat([cross_x.unsqueeze(-1), cross_y.unsqueeze(-1), cross_z.unsqueeze(-1)], dim=-1)
-        # # bz x nsmp x k x 3
-        cross_prod_avg = torch.mean(cross_prod, dim=2)
-        return cross_prod_avg
-
-    def generate_feature_row_space(self, nearest_k_idx, nearest_k_dist, features, fps_idx, r=0.03, zero=False):
-        bz, N, nsmp = features.size(0), features.size(1), nearest_k_idx.size(1)
-        # # bz x nsmp x k x feat_dim
-        # if zero:
-        #     features = features - torch.mean(features, dim=2, keepdim=True)
-        nearest_k_features = batched_index_select(features, indices=nearest_k_idx, dim=1)
-        nearest_k_feat_split = [nearest_k_features[:, :, :, :3], nearest_k_features[:, :, :, 3:]]
-
-        # # [pos, pos2]
-        nearest_k_feat_split[1] = nearest_k_feat_split[0] + nearest_k_feat_split[1]
-
-        if zero:
-            nearest_k_feat_split[0] = nearest_k_feat_split[0] - torch.mean(nearest_k_feat_split[0], dim=2, keepdim=True)
-            nearest_k_feat_split[1] = nearest_k_feat_split[1] - torch.mean(nearest_k_feat_split[1], dim=2, keepdim=True)
-
-        nearest_k_feat_row_space = []
-        for nearest_k_feat in nearest_k_feat_split:
-            U, Sigma, VT = np.linalg.svd(nearest_k_feat.detach().cpu().numpy())
-            # # if we randomly apply some sign change to let the model be aware that the row-space may
-            # # bz x nsmp x 3 x 3
-            # # # todo: test the reverse process...
-            V = torch.from_numpy(VT).to(features.device).transpose(2, 3)
-            V_det = torch.det(V)
-            V_det_indicators = (V_det < -0.3).float()
-            # print(torch.sum(V_det_indicators, dim=-1).mean())
-            V_det_indicators = V_det_indicators.unsqueeze(-1).repeat(1, 1, 9).contiguous().view(bz, nsmp, 3, 3)
-            V_det_indicators[:, :, :, :2] = 0.0
-            V[V_det_indicators > 0.5] *= -1.0
-            # V_det = torch.det(V)
-            # V_det_indicators = (V_det < -0.3).float()
-            # print(torch.sum(V_det_indicators, dim=-1).mean())
-            # # V: the rotation of this space to the canonical space
-            nearest_k_feat_row_space.append(V)
-        # inner_product = []
-        # for i in range(len(nearest_k_feat_row_space)):
-        #     for j in range(len(nearest_k_feat_row_space)):
-        #         if i == j:
-        #             continue
-        #         inner_product.append(torch.matmul(nearest_k_feat_row_space[i], nearest_k_feat_row_space[j].transpose(2, 3)))
-        # nearest_k_feat_row_space = nearest_k_feat_row_space + inner_product
-        matmul_prod = torch.matmul(nearest_k_feat_row_space[1], nearest_k_feat_row_space[0].transpose(2, 3))
-        nearest_k_feat_row_space.append(matmul_prod)
-
-        nearest_k_feat_row_space = [kk.contiguous().view(bz, nsmp, 9) for kk in nearest_k_feat_row_space]
-        nearest_k_feat_row_space = torch.cat(nearest_k_feat_row_space, dim=-1) #
-
-        return nearest_k_feat_row_space
-
-    def get_part_level_contrast_loss(self, x, nmasks, masks, point_part=False, part_part=False):
-        bz, N = x.size(0), x.size(1)
-        pred_l_expand = x.unsqueeze(1).repeat(1, nmasks, 1, 1)
-        # # # bz x nmasks x N x feat_dim
-        # # # masks.size = bz x N x nmasks
-        masks_expand = masks.transpose(1, 2).unsqueeze(-1).repeat(1, 1, 1, x.size(-1))
-        # # # masks_expand.size = bz x nmasks x N x feat_dim
-        pred_l_expand[masks_expand < 0.5] = -1e9  # # mask out those features
-        pred_part_level_features, _ = torch.max(pred_l_expand, dim=2)
-        # print(pred_part_level_features[0, :10, :10])
-        # # # bz x nmasks x feat_dim
-        pred_part_level_features = CorrFlowPredNet.apply_module_with_conv1d_bn(
-            pred_part_level_features, self.glb_pred_l_pred_net
-        )
-
-        loss = torch.zeros((1, ), dtype=torch.float32, device=masks.device)
-        gt_conf = torch.sum(masks, dim=1)
-        if point_part:
-            # # print(pred_part_level_features[0, :10, :10])
-            # # # labels.size = bz x N
-            point_part_labels = torch.argmax(masks, dim=-1)
-            # # # bz x N x nmasks
-            pred_point_part_cosine_logits = torch.sum(x.unsqueeze(2) * pred_part_level_features.unsqueeze(1), dim=-1) / \
-                                            (torch.clamp(torch.norm(x.unsqueeze(2), dim=-1, p=2) *
-                                                         torch.norm(pred_part_level_features.unsqueeze(1), dim=-1, p=2),
-                                                         min=1e-9))
-
-            # # ###### Another method for calculating point-part loss and part-part loss ######
-            gt_conf[gt_conf > 0.5] = 1.0
-            gt_conf[gt_conf < 0.5] = 0.0
-            num_valid_masks = torch.sum(gt_conf, dim=1)
-            tot_point_part_contrast_loss = 0.0
-            for i_bt in range(bz):
-                cur_nmasks = int(num_valid_masks[i_bt].detach().item())
-                cur_trunc_point_part_logits = pred_point_part_cosine_logits[i_bt, :, :] / 0.07
-                # N x cur_nmasks
-                cur_gt_conf = gt_conf[i_bt]
-                # nmasks
-                cur_gt_conf_expand = cur_gt_conf.unsqueeze(0).repeat(N, 1)
-                cur_trunc_point_part_logits[cur_gt_conf_expand < 0.5] = -1e9
-                cur_mask_labels = point_part_labels[i_bt]
-                # print(cur_nmasks)
-                # print(cur_mask_labels[:10])
-                cur_point_part_loss = F.nll_loss(input=torch.log_softmax(cur_trunc_point_part_logits, dim=-1),
-                                                 target=cur_mask_labels)
-                tot_point_part_contrast_loss += cur_point_part_loss
-            tot_point_part_contrast_loss = tot_point_part_contrast_loss / bz
-            loss += tot_point_part_contrast_loss
-        if part_part:
-            gt_conf[gt_conf > 0.5] = 1.0
-            gt_conf[gt_conf < 0.5] = 0.0
-            num_valid_masks = torch.sum(gt_conf, dim=1)
-
-            pred_part_part_cosine_logits = torch.sum(
-                pred_part_level_features.unsqueeze(2) * pred_part_level_features.unsqueeze(1), dim=-1) / \
-                                           (torch.clamp(
-                                               torch.norm(pred_part_level_features.unsqueeze(2), dim=-1,
-                                                          p=2) * torch.norm(
-                                                   pred_part_level_features.unsqueeze(1), dim=-1, p=2), min=1e-9))
-            tot_part_part_loss = 0.0
-            for i_bt in range(bz):
-                cur_nmasks = int(num_valid_masks[i_bt].detach().item())
-                cur_gt_conf = gt_conf[i_bt]
-                cur_gt_conf_expand_row = cur_gt_conf.unsqueeze(1).repeat(1, nmasks)
-                cur_gt_conf_expand_col = cur_gt_conf.unsqueeze(0).repeat(nmasks, 1)
-                cur_trunc_part_part_logits = pred_part_part_cosine_logits[i_bt, :, :]
-                cur_gt_mask_labels = torch.eye(nmasks, dtype=torch.float32, device=x.device)
-                cur_part_part_loss = -(1. - cur_gt_mask_labels) * torch.log(
-                    torch.clamp(1. - cur_trunc_part_part_logits, min=1e-9))
-                cur_part_part_loss[cur_gt_conf_expand_row < 0.5] = 0.0
-                cur_part_part_loss[cur_gt_conf_expand_col < 0.5] = 0.0
-                if cur_nmasks > 1:
-                    cur_part_part_loss = torch.sum(cur_part_part_loss) / float(cur_nmasks * (cur_nmasks - 1))
-                    tot_part_part_loss += cur_part_part_loss
-            tot_part_part_loss = tot_part_part_loss / bz
-            loss += tot_part_part_loss
-        return loss
 
     def forward(
             self, pos: torch.FloatTensor,
@@ -504,7 +319,8 @@ class InstSegNet(nn.Module):
 
         pred_l = x
 
-        if self.add_intermediat_loss: # or self.args.with_normalcst_loss or self.args.with_primpred_loss or self.args.with_parampred_loss:
+        if self.add_intermediat_loss:
+            # or self.args.with_normalcst_loss or self.args.with_primpred_loss or self.args.with_parampred_loss:
             n_samples_inter_loss = self.args.n_samples_inter_loss # intermediate loss
             if n_samples_inter_loss < self.npoints:
                 fps_idx = farthest_point_sampling(pos, n_sampling=n_samples_inter_loss)
@@ -521,9 +337,7 @@ class InstSegNet(nn.Module):
                 pred_l_inter = pred_l.contiguous().view(bz * N, -1)[fps_idx, :].contiguous().view(bz, n_samples_inter_loss, -1).contiguous()
                 masks_inter = masks.contiguous().view(bz * N, -1)[fps_idx, :].contiguous().view(bz, n_samples_inter_loss, -1).contiguous()
                 for k in matrices:
-                    matrices[k] = matrices[k].contiguous().view(bz * N, -1)[fps_idx, :].contiguous().view(bz,
-                                                                                                          n_samples_inter_loss,
-                                                                                                          -1).contiguous()
+                    matrices[k] = matrices[k].contiguous().view(bz * N, -1)[fps_idx, :].contiguous().view(bz, n_samples_inter_loss, -1).contiguous()
             else:
                 pos_inter = pos
                 pred_l_inter = pred_l
@@ -546,16 +360,15 @@ class InstSegNet(nn.Module):
             segpred_ori = CorrFlowPredNet.apply_module_with_conv1d_bn(
                 x, self.cls_layers
             )
-            segpred_clamped = torch.clamp(segpred_ori, min=-20, max=20)
+            segpred_clamped = torch.clamp(segpred_ori, min=-20, max=20) ## Important...
             segpred_not_transposed = torch.softmax(segpred_clamped, dim=-1)
 
-            # 3-interpolate?
             # pos_pos_sub_dist = torch.sum(())
             # segpred = batched_index_select(segpred, indices=minn_idx, dim=1)
             segpred = segpred_not_transposed.transpose(1, 2).contiguous()
             ''' top-down segmentation '''
 
-            #### EXCLUDE other losses ####
+            #### Other losses ####
             # if self.args.with_primpred_loss or self.args.with_normalcst_loss or self.args.with_parampred_loss:
             #     if fps_idx is not None:
             #         x_sub = x.contiguous().view(bz * N, -1)[fps_idx, :].contiguous().view(bz, n_samples_inter_loss, -1).contiguous()
@@ -593,7 +406,7 @@ class InstSegNet(nn.Module):
             #     )
             #     statistics["parampred"] = parampred
             # ''' PARAMETER prediction '''
-            #### EXCLUDE other losses ####
+            #### Other losses ####
 
             ''' conf prediction '''
             if self.args.with_conf_loss:

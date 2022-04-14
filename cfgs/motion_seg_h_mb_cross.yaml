@@ -22,6 +22,7 @@ use_dgcnn:  Ture
 dgcnn_layers: 3
 backbone: "DGCNN"
 input_normal: True
+#debug: True # 
 debug: False
 debug_arch:  False
 
@@ -33,7 +34,8 @@ pnpp_n_layers: 3
 
 sampling_tolerance: 10
 
-dataset_root: ./data/part-segmentation/data/motion_part_split_meta_info
+#dataset_root: ./data/part-segmentation/data/motion_part_split_meta_info
+dataset_root: /share/xueyi/proj_data/part-segmentation
 augment: True
 if_normal_noise: False
 split_type: True
@@ -87,7 +89,8 @@ up_feat_dims: 64,64,32
 n_samples: 1024,512,1
 radius: 0.2,0.4,0.4
 k: 48
-pred_nmasks: 30
+#pred_nmasks: 30
+pred_nmasks: 11
 n_max_instances: 24
 map_feat_dim: 32
 nseeds: 256

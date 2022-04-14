@@ -20,6 +20,7 @@ import scipy.io as sio
 import copy
 from model.utils import farthest_point_sampling
 
+''' Some utils '''
 def padding_1(pos):
     pad = np.array([1.], dtype=np.float).reshape(1, 1)
     # print(pos.shape, pad.shape)
@@ -227,61 +228,9 @@ class PartSegmentationDataset(data.Dataset):
         return self.data['pc1'].shape[0]
 
 
-class FlowDataset(data.Dataset):
-    def __init__(self, root, npoints=512, split='train', nmask=10):
-        super(FlowDataset, self).__init__()
-        self.dataset_path = os.path.join(root, f"flow_{split}")
-        self.nmask = nmask
-        self.npoints = npoints
-        self.data = sio.loadmat(self.dataset_path)
-        print(f"Flow dataset for {split} loaded! Len =", self.data['pc1'].shape[0])
-
-    def generate_3d(self):
-        """Generate a 3D random rotation matrix.
-        Returns:
-            np.matrix: A 3D rotation matrix.
-        """
-        x1, x2, x3 = np.random.rand(3)
-        R = np.array([[np.cos(2 * np.pi * x1), np.sin(2 * np.pi * x1), 0],
-                       [-np.sin(2 * np.pi * x1), np.cos(2 * np.pi * x1), 0],
-                       [0, 0, 1]], dtype=np.float)
-        v = np.array([[np.cos(2 * np.pi * x2) * np.sqrt(x3)],
-                       [np.sin(2 * np.pi * x2) * np.sqrt(x3)],
-                       [np.sqrt(1 - x3)]], dtype=np.float)
-        H = np.eye(3) - 2 * v * v.T
-        M = -H * R
-        return M
-
-    def __getitem__(self, index):
-        pc1 = copy.deepcopy(self.data['pc1'][index])
-        pc2 = copy.deepcopy(self.data['pc2_partial'][index])
-        flow12 = copy.deepcopy(self.data['pc2'][index]-self.data['pc1'][index]) # position1 - position2 = flow?
-        vismask = copy.deepcopy(self.data['vismask'][index])
-        # whether one point has its corresponding point in another shape
-
-        permidx = np.random.permutation(pc1.shape[0])[: self.npoints] # permutation --- data augmentation
-        pc1 = pc1[permidx,:]
-        flow12 = flow12[permidx,:]
-        vismask = vismask[permidx]
-        permidx2 = np.random.permutation(pc2.shape[0])[: self.npoints]
-        pc2 = pc2[permidx2,:]
-
-        # apply global motion
-        R1 = self.generate_3d()
-        R2 = np.eye(3)
-        flow12 = np.matmul(np.matmul(pc1,R1),R2-np.eye(3))+np.matmul(np.matmul(flow12,R1),R2)
-        pc1 = np.matmul(pc1,R1)
-        pc2 = np.matmul(np.matmul(pc2,R1),R2)
-
-        momasks = np.zeros((self.npoints, self.nmask))
-        return pc1, pc2, flow12, vismask, momasks
-
-    def __len__(self):
-        return self.data['pc1'].shape[0]
-
 class PartSegmentationMetaInfoDataset(data.Dataset):
     def __init__(
-            self, root="/data-input/motion_part_split_meta_info", npoints=512, split='train', nmask=10, relrot=True, landmark_type="net", buf_lm=False,
+            self, root="./data", npoints=512, split='train', nmask=10, relrot=True, landmark_type="net", buf_lm=False,
             load_file_name="tot_part_motion_meta_info.npy", shape_types=["03642806", "04379243"], split_data=None, real_test=False,
             part_net_seg=False, rt_inter=False, partnet_split=False, flow_est=False, args=None, split_types=False
     ):
@@ -315,7 +264,8 @@ class PartSegmentationMetaInfoDataset(data.Dataset):
 
             if not self.part_net_seg:
                 # if not os.path.exists("/data-input/motion_part_split_meta_info"):
-                fl_path = os.path.join(root, f"all_type_tot_{self.split}_tot_part_motion_meta_info.npy")
+                motion_data_root = os.path.join(root, "data", "motion_part_split_meta_info")
+                fl_path = os.path.join(motion_data_root, f"all_type_tot_{self.split}_tot_part_motion_meta_info.npy")
                 data = np.load(fl_path, allow_pickle=True).item()
                 if split_types:
                     self.data = {}
@@ -328,7 +278,8 @@ class PartSegmentationMetaInfoDataset(data.Dataset):
                     self.data = data
             else:
                 self.shp_types_to_number = dict()
-                partnet_root = os.path.join(root, "..", "..")
+                # partnet_root = os.path.join(root, "..", "..")
+                partnet_root = root
                 for shp_name in shape_types:
                     cur_shp_meta_file_pth = os.path.join(partnet_root, "part_net_meta_info_category", shp_name)
                     if not partnet_split:
@@ -341,7 +292,8 @@ class PartSegmentationMetaInfoDataset(data.Dataset):
 
             print(f"{self.split} data loaded with total length = {len(self.data)}")
         else:
-            self.dataset_path = os.path.join(root, "..", f"sf2f_test_est.mat")
+            # self.dataset_path = os.path.join(root, "..", f"sf2f_test_est.mat")
+            self.dataset_path = os.path.join(root, "data", f"sf2f_test_est.mat")
             self.masks_names = "seg1"
             self.nmask = nmask
             self.relrot = relrot
@@ -469,7 +421,6 @@ class PartSegmentationMetaInfoDataset(data.Dataset):
     def __getitem__(self, index):
 
         if self.split == 'train' or (not self.real_test):
-
             reindex_idx = self.new_idx_to_old_idx[index]
             # cur_shape = copy.deepcopy(self.data[reindex_idx])
             cur_shape = self.data[reindex_idx]
@@ -596,7 +547,7 @@ class PartSegmentationMetaInfoDataset(data.Dataset):
 
             rel_rot_for_pc2 = R1.T
             gt_rotation = np.matmul(gt_rotation, np.reshape(rel_rot_for_pc2, (1, 3, 3)))
-            flow12 = pc2 - pc1_af_rel
+            flow12 = pc2 - pc1_af_rel # flows used for training
             rd_num = np.random.choice(2, 1).item()
             pc1_af_glb = pc1_af_rel
             pc2_af_glb = pc2
@@ -610,7 +561,6 @@ class PartSegmentationMetaInfoDataset(data.Dataset):
             gt_transform_vec = gt_transform_vec[permidx, :]
             pc1_af_glb = np.concatenate([pc1_af_glb, gt_transform_vec], axis=-1)
             flow12 = flow12[permidx, :]
-            # print(shape_seg)
             shape_seg = self.reindex_shape_seg(shape_seg)
             # shape_seg = shape_seg[permidx]
             shape_seg_masks = np.eye(self.nmask)[np.minimum(shape_seg, self.nmask - 1)[permidx].astype('int32')]
@@ -855,18 +805,19 @@ class PartSegmentationMetaInfoMotionDataset(data.Dataset):
 
 
 if __name__ == '__main__':
-    d = ModelNetDataset(root='../data/modelnet40_normal_resampled', split='test')
-    print(d.shuffle)
-    print(len(d))
-    import time
-
-    tic = time.time()
-    for i in range(10):
-        ps, cls = d[i]
-    print(time.time() - tic)
-    print(ps.shape, type(ps), cls)
-
-    print(d.has_next_batch())
-    ps_batch, cls_batch = d.next_batch(True)
-    print(ps_batch.shape)
-    print(cls_batch.shape)
+    pass
+    # d = ModelNetDataset(root='../data/modelnet40_normal_resampled', split='test')
+    # print(d.shuffle)
+    # print(len(d))
+    # import time
+    #
+    # tic = time.time()
+    # for i in range(10):
+    #     ps, cls = d[i]
+    # print(time.time() - tic)
+    # print(ps.shape, type(ps), cls)
+    #
+    # print(d.has_next_batch())
+    # ps_batch, cls_batch = d.next_batch(True)
+    # print(ps_batch.shape)
+    # print(cls_batch.shape)

@@ -741,128 +741,6 @@ class ComputingGraphLossModel(nn.Module):
             raise ValueError(f"Unrecognized oper_trans_idx: {oper_trans_idx}.")
         return ans
 
-    ''' NOT using now '''
-    ''' GET part-level feature matrix by part-level operator index '''
-    def get_pred_feat_matrix_by_oper_matrix_idx(self, oper_mtxs, part_oper_idx):
-        ans = None
-        if part_oper_idx == 0:
-            left_oper, right_oper = oper_mtxs
-            bz, N, k = left_oper.size(0), left_oper.size(1), left_oper.size(2)
-            mtx = torch.matmul(left_oper.contiguous().transpose(2, 3).contiguous(), right_oper)
-            ans = mtx.contiguous().view(bz, N, -1)
-        elif part_oper_idx == 1:
-            left_oper, right_oper = oper_mtxs
-            bz, N, k = left_oper.size(0), left_oper.size(1), left_oper.size(2)
-            if not self.no_spectral:
-                try:
-                    mtx = torch.matmul(left_oper.contiguous().transpose(2, 3).contiguous(), right_oper)
-                    U, _, VT = np.linalg.svd(mtx.detach().cpu().numpy())
-                    U, VT = torch.from_numpy(U).to(left_oper.device), torch.from_numpy(VT).to(left_oper.device)
-                    mtx = torch.matmul(U, VT)
-                except:
-                    mtx = torch.matmul(left_oper.contiguous().transpose(2, 3).contiguous(), right_oper)
-            else:
-                mtx = torch.matmul(left_oper.contiguous().transpose(2, 3).contiguous(), right_oper)
-            if torch.any(torch.isnan(mtx)) or torch.any(torch.isinf(mtx)):
-                ans = None
-            else:
-                ans = mtx.contiguous().view(bz, N, -1)
-        elif part_oper_idx == 2:
-
-            A = oper_mtxs[0]
-            b = torch.sum(oper_mtxs[1], dim=-1, keepdim=True)
-            bz, N = A.size(0), A.size(1)
-            if not self.no_spectral:
-                with torch.no_grad():
-                    x = torch.linalg.lstsq(A, b)[0]
-                x = x.squeeze(-1)
-
-                if torch.any(torch.isnan(x)) or torch.any(torch.isinf(x)):
-                    ans = None
-                else:
-                    ans = x
-            else:
-                ans = torch.matmul(A.contiguous().transpose(2, 3).contiguous(), b)
-                ans = ans.contiguous().view(bz, N, -1).contiguous()
-        elif part_oper_idx == 3:
-            oper = oper_mtxs[0]
-            # s.size = bz x N x 3
-            with torch.no_grad():
-                u, s, vh = np.linalg.svd(oper.detach().cpu().numpy())
-            v = torch.from_numpy(vh).to(oper.device).transpose(1, 2)
-            # min_s.size = bz x N; min_s_idx.size = bz x N;
-            min_s, min_s_idx = torch.min(torch.from_numpy(s).to(oper.device), dim=-1)
-            rt = v[:, :, min_s_idx]
-            if torch.any(torch.isnan(rt)) or torch.any(torch.isinf(rt)):
-                ans = None
-            else:
-                ans = rt
-        elif part_oper_idx == 4:
-            # A.size = bz x N x k x k_1
-            # b.size = bz x N x k x k_2
-            A = oper_mtxs[0]
-            b = oper_mtxs[1]
-            bz, N = A.size(0), A.size(1)
-            if not self.no_spectral:
-                with torch.no_grad():
-                    x = torch.linalg.lstsq(A, b)[0]
-                x = x.squeeze(-1)
-
-                if torch.any(torch.isnan(x)) or torch.any(torch.isinf(x)):
-                    ans = None
-                else:
-                    ans = x.contiguous().view(bz, N, -1).contiguous()
-            else:
-                ans = torch.matmul(A.contiguous().transpose(2, 3).contiguous(), b)
-                ans = ans.contiguous().view(bz, N, -1).contiguous()
-            # ans = x
-        elif part_oper_idx == 5:  # Element-wise MEAN of a point-level feature matrix
-            A = oper_mtxs[0]
-            ans = torch.mean(A, dim=-2)
-        elif part_oper_idx == 6: # Element-wise SUM of a point-level feature matrix
-            A = oper_mtxs[0]
-            ans = torch.sum(A, dim=-2)
-        elif part_oper_idx == 7: # (1) Inner product between each two points; (2) MEAN of the inner product value
-            A, B = oper_mtxs[0], oper_mtxs[1]
-            if A.size(-1) != B.size(-1):
-                ans = torch.mean(torch.sum(A ** 2, dim=-1), dim=-1) + torch.mean(torch.sum(B ** 2, dim=-1), dim=-1)
-            else:
-                inner_prod = torch.matmul(A, B.contiguous().transpose(2, 3).contiguous())
-                ans = torch.mean(torch.mean(inner_prod, dim=-1), dim=-1)
-        elif part_oper_idx == 8: # (1) Cross product between each two points; (2) MEAN over the cross product vectors
-            A, B = oper_mtxs[0], oper_mtxs[1]
-            k, feat_dim = A.size(-2), A.size(-1)
-            if A.size(-1) != B.size(-1) or A.size(-2) != B.size(-2):
-                ans = torch.mean(A, dim=-2)
-            else:
-                # A.size = bz x N x k x 3
-                A_expand = A.unsqueeze(-2).repeat(1, 1, 1, k, 1)
-                B_expand = B.unsqueeze(-3).repeat(1, 1, k, 1, 1)
-                cross_prod = torch.cross(A_expand, B_expand, dim=-1)
-                ans = torch.mean(torch.mean(cross_prod, dim=-2), dim=-2)
-
-        else:
-            raise ValueError(f"Unrecognized part_oper_idx: {part_oper_idx}.")
-        return ans
-
-    ''' NOT using now '''
-    ''' GET matmul matrix ans of different kinds 
-     - This is for loss model v2'''
-    def get_matmul_matrix_transformation_res(self, mtx, transform_idx):
-        if transform_idx == 0:
-            ans = mtx
-        elif transform_idx == 1: # pinverse
-            ans = torch.pinverse(mtx)
-        elif transform_idx == 2:
-            U, _, VT = np.linalg.svd(mtx.detach().cpu().numpy())
-            U, VT = torch.from_numpy(U).to(mtx.device), torch.from_numpy(VT).to(mtx.device)
-            feat_dim = VT.size(-1)
-            U = U[:, :, :, :feat_dim]
-            ans = torch.matmul(U, VT)
-        else:
-            raise ValueError(f"Unrecognzied mtx transformation index for matmul operation: {transform_idx}.")
-        return ans
-
     ''' GET neighbouring pts for each point 
      - Sample neighbours only based on labels'''
     def get_near_sim_part_neighbours(self, label, pos, r=0.07):
@@ -898,7 +776,6 @@ class ComputingGraphLossModel(nn.Module):
                 normals = self.estimate_normals(pos)
             # normals = self.calculate_part_offset(pos, label)
         else:
-
             normals = matrices['normals']
         ''' ESTIMATE normals '''
 
@@ -977,14 +854,13 @@ class ComputingGraphLossModel(nn.Module):
                 else:
                     to_pred_feat, to_pred_feat_dim = self.generate_gt_fats_by_oper_dict(cur_oper_dict, [pp_part_pos, pp_part_normals])
 
-                if to_pred_feat is None:
+                if to_pred_feat is None: # when an invalid operation is sampled...
                     continue
 
                 if len(to_pred_feat_dim) + 2 < len(to_pred_feat.size()):
                     to_pred_feat = to_pred_feat.contiguous().squeeze(2).contiguous()
 
                 if len(to_pred_feat_dim) > 1:
-                    # bz, N =
                     to_pred_feat = to_pred_feat.contiguous().view(bz, N, -1).contiguous()
 
                 cur_head_idx = self.module_index_to_head_idx_dict[i]
