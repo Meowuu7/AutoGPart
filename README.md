@@ -33,7 +33,7 @@ h5py==2.8.0
 To optimize the supervision distribution space for the mobility-based part segmentation task, please use the following command:
 
 ```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 horovodrun -np 8  -H ${your_machine_ip}:8 python -W ignore main_prm.py -c ./cfgs/motion_seg_h_mb_cross.yaml
+CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/motion_seg_h_mb_cross.yaml
 ```
 
 for the default segmentation network with DGCNN backbone.
@@ -45,7 +45,7 @@ To test PointNet++ backbone, replace `use_dgcnn` in `./cfgs/motion_seg_h_mb_cros
 To optimize the supervision distribution space for the primitive fitting task, please use the following command:
 
 ```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 horovodrun -np 8 -H ${your_machine_ip}:8 python -W ignore main_prm.py -c ./cfgs/prim_sea_h_mb_v2_tree.yaml
+CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/prim_sea_h_mb_v2_tree.yaml
 ```
 
 for the default segmentation network with DGCNN backbone.
@@ -55,7 +55,7 @@ To test PointNet++ backbone, replace `use_dgcnn` in `./cfgs/prim_sea_h_mb_v2_tre
 To optimize the supervision distribution space for the first learning stage of primitive fitting task using HPNet-style network architecture, please use the following command:
 
 ```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 horovodrun -np 8 -H ${your_machine_ip}:8 python -W ignore main_prm.py -c ./cfgs/prim_seg_h_mb_v2_tree_optim_loss.yaml
+CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/prim_seg_h_mb_v2_tree_optim_loss.yaml
 ```
 
 ### Sample supervision features from the optimized supervision feature distribution space
@@ -75,7 +75,7 @@ Sampled supervision features will be printed out on the screen.
 Replace the `beam_search` variable in the config file from `False` to `True` and use the following command three times to select the optimal supervision combination: 
 
 ```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 horovodrun -np 8 -H ${your_machine_ip}:8 python -W ignore main_prm.py -c ./cfgs/${your_config_file}
+CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/${your_config_file}
 ```
 
 You need to modify the function `beam_searh_for_best` in each trainer file to guide the selection process according to the algorithm described in the supplementarty material.
@@ -89,7 +89,7 @@ After we have got the searched and selected supervision combination, modify the 
 Use the following command to evaluate the selected supervision features:
 
 ```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 horovodrun -np 8 -H ${your_machine_ip}:8 python -W ignore main_prm.py -c ./cfgs/motion_seg_h_ob_cross_tst_perf.yaml
+CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/motion_seg_h_ob_cross_tst_perf.yaml
 ```
 
 ### Primitive fitting
@@ -97,7 +97,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 horovodrun -np 8 -H ${your_machine_ip}:8 py
 Use the following command to evaluate the selected supervision features:
 
 ```shell
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 horovodrun -np 8 -H ${your_machine_ip}:8 python -W ignore main_prm.py -c ./cfgs/prim_seg_h_ob_v2_tree.yaml
+CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/prim_seg_h_ob_v2_tree.yaml
 ```
 
 ## Inference stage
