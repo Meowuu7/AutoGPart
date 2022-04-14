@@ -1,0 +1,125 @@
+task: motion_inference
+batch_size: 36 #   64
+epochs: 400
+use_sgd: False
+weight_decay_sgd: 1e-4
+dp_ratio: 0.5
+device: 0
+gpu:  2
+landmark_type:  motion_seg_inference
+cluster_seed_pts: 256
+stage: 1
+
+part_aware: True 
+mix_style: False 
+restrict_nei: True 
+in_model_loss_model: True
+skip_global: False
+
+use_uniconv: False
+use_dgcnn:   True
+dgcnn_layers:  3
+backbone: "DGCNN"
+input_normal: True
+debug:  True
+debug_arch: False
+
+pnpp_n_layers: 3
+
+sampling_tolerance: 5
+
+dataset_root: ./data/part-segmentation/data/motion_part_split_meta_info
+augment: True
+if_normal_noise: False
+split_type: True
+split_train_test: False
+train_prim_types: 0,10,1,4
+test_prim_types: 2,3,9,11
+train_dataset: train_data.txt
+val_dataset: val_data.txt
+test_dataset: test_data.txt
+
+use_ansi: True
+ansi_train_prim_types: 1,3,0
+ansi_val_prim_types: 4,5
+ansi_test_prim_types: 2,6
+
+test_performance: True
+not_clip: True
+
+nn_inter_loss: 3
+nn_part_level_operations: 10
+nn_point_level_feat: 6
+nn_feat_transformations: 5
+
+ansi_c_tr_prim_1: 1
+ansi_c_tr_prim_2: 0,3
+ansi_c_tr_prim_3: 4,5
+
+nn_grp_opers: 4
+nn_binary_opers: 6
+nn_unary_opers: 6
+nn_in_feats: 7
+
+v2_tree: True
+
+partnet_train_types: "Chair;StorageFurniture;Lamp"
+partnet_val_types: "Chair;StorageFurniture;Lamp"
+partnet_test_types: "Chair;StorageFurniture;Lamp"
+
+
+no_spectral: True
+ansi_n_clusters: 7
+
+init_lr:  0.001
+weight_decay: 1e-4
+lr_decay_ratio: 0.7
+step_size: 30
+num_points: 10000
+num_points_sampled_for_seed: 512
+feat_dims: 64,128,256
+up_feat_dims: 64,64,32
+n_samples: 1024,512,1
+radius: 0.2,0.4,0.4
+k: 48
+pred_nmasks: 30
+n_max_instances: 24
+map_feat_dim: 32
+nseeds: 256
+add_intermediat_loss: False
+seg_nmasks: 11
+n_primitives: 4
+nmasks: 11
+n_layers: 3
+local_unet_n_layers: 3
+in_feat_dim: 3
+use_normal_loss: True
+
+resume: ""
+
+pure_test: False
+pure_test_types: "Chair;StorageFurniture;Lamp;Bag;Bed;Bottle;Bowl;Clock;Dishwasher;Display;Door;Earphone;Faucet;Hat;Keyboard;Knife;Laptop;Microwave;Mug;Refrigerator;Scissors;Table;TrashCan;Vase"
+
+
+cls_backbone: True
+with_normal: True
+with_conf_loss: False
+use_spfn: True
+with_fitting_loss: False
+with_primpred_loss: False
+with_normalcst_loss: False
+with_parampred_loss: False
+with_rt_loss: False
+r_loss_ratio: 1.0
+t_loss_ratio: 1.0
+param_weight: 0.1
+param_pred_dim: 22
+n_samples_inter_loss: 10000
+
+sea_interval: 7
+
+
+conv_select_types: 0,0,0
+point_feat_selection: 6
+point_geo_feat_selection: 5
+contrast_selection: 1,1,1
