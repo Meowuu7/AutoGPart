@@ -152,7 +152,7 @@ Please download optimized distribution parameters and trained models from [here]
 
 ### Primitive fitting
 
-Please download optimized distribution parameters and trained models from [here](https://www.jianguoyun.com/p/Del3tisQvrvNCRjlt7kEIAA).
+Please download optimized distribution parameters and trained models from [here](https://drive.google.com/drive/folders/1bDF81h-ATSdiejnU888f7IihEkNhXH9r?usp=sharing).
 
 ## Unsolved Problems
 
