@@ -1,4 +1,4 @@
-### AutoGPart: Intermediate Supervision Search for Generalizable 3D Part Segmentation
+# AutoGPart: Intermediate Supervision Search for Generalizable 3D Part Segmentation
 
 AutoGPart is a method that builds an intermediate supervision space to search from to improve the generalization ability of 3D part segmentation networks. 
 
