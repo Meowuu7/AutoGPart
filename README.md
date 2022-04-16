@@ -139,10 +139,6 @@ We use the same dataset as the one used in [4]. We re-split the dataset to bette
 
 The dataset can be downloaded via [Traceparts](https://www.traceparts.com/) (original version). 
 
-## Data
-
-### Mobility-based part segmentation
-
 ## Checkpoints
 
 There are two kinds of checkpoints: 
