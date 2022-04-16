@@ -2,7 +2,7 @@
 
 AutoGPart is a method that builds an intermediate supervision space to search from to improve the generalization ability of 3D part segmentation networks. 
 
-This repository contains PyTorch implementation of our paper: 
+This repository contains the PyTorch implementation of our paper: 
 
 [AutoGPart: Intermediate Supervision Search for Generalizable 3D Part Segmentation](https://arxiv.org/pdf/2203.06558.pdf), *Xueyi Liu*, *Xiaomeng Xu*, [*Anyi Rao*](https://anyirao.com), [*Chuang Gan*](https://people.csail.mit.edu/ganchuang/), [*Li Yi*](https://ericyi.github.io), CVPR 2022.
 
@@ -125,7 +125,7 @@ For clustering-based segmentation, use the `_clustering_test` function; For anot
 
 ## Datasets
 
-(TODO: post-processed data)
+TODO: post-processed data
 
 ### Mobility-based part segmentation
 
@@ -153,6 +153,10 @@ There are two kinds of checkpoints:
 ### Mobility-based part segmentation
 
 Please download optimized distribution parameters and trained models from [here](https://drive.google.com/drive/folders/1oPocnUABlkRbO9wmwmKHCy2VM-BZrUDm?usp=sharing).
+
+### Primitive fitting
+
+Please download optimized distribution parameters and trained models from [here](https://www.jianguoyun.com/p/Del3tisQvrvNCRjlt7kEIAA).
 
 ## Unsolved Problems
 
