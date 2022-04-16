@@ -131,5 +131,5 @@ dmypy.json
 data/modelnet40_normal_resampled/
 datasets/indoor3d_sem_seg_hdf5_data
 
-./ckpts/*.npy
-./data/
+ckpts
+data
