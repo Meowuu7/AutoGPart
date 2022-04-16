@@ -23,6 +23,7 @@ dgcnn_layers: 3
 backbone: "DGCNN"
 input_normal: True
 debug: False
+#debug: True
 debug_arch:  False
 
 less_layers: False
@@ -33,6 +34,7 @@ pnpp_n_layers: 3
 sampling_tolerance: 10
 
 dataset_root: ./data/traceparts_data
+#dataset_root: /share/xueyi/proj_data/traceparts_data
 augment: True
 if_normal_noise: False
 split_type: True

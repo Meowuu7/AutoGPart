@@ -1,15 +1,7 @@
 import torch
 import torch.nn as nn
-# from model.pointnetpp_segmodel_sea import PointNetPPInstSeg
-# from model.primitive_fitting_net_sea import PrimitiveFittingNet
-# from model.pointnetpp_segmodel_cls_sea import InstSegNet
-# from model.pointnetpp_segmodel_cls_sea_v2 import InstSegNet
 from model.motion_segmodel_cls_sea_v2 import InstSegNet
 
-# from datasets.Indoor3DSeg_dataset import Indoor3DSemSeg
-# from datasets.instseg_dataset import InstSegmentationDataset
-# from datasets.ABC_dataset import ABCDataset
-# from datasets.ANSI_dataset import ANSIDataset
 from datasets.motionseg_dataset import PartSegmentationMetaInfoDataset
 from torch.nn import functional as F
 
@@ -27,9 +19,7 @@ import numpy as np
 import logging
 from model.loss_model_v5 import ComputingGraphLossModel
 from .trainer_utils import get_masks_for_seg_labels, compute_param_loss, DistributionTreeNode, DistributionTreeNodeV2, DistributionTreeNodeArch
-# from datasets.partnet_dataset import PartNetInsSeg
-# from model.loss_utils import get_one_hot
-# from model.model_util import set_bn_not_training, set_grad_to_none
+
 
 class TrainerInstSegmentation(nn.Module):
     def __init__(self, dataset_root, num_points=512, batch_size=32, num_epochs=200, cuda=None, dataparallel=False,
@@ -239,6 +229,17 @@ class TrainerInstSegmentation(nn.Module):
                 part_net_seg=False, args=args
             )
 
+            if self.args.test_performance:
+                self.test_set = PartSegmentationMetaInfoDataset(
+                    root=self.dataset_root, split='real_test', npoints=512, nmask=10, relrot=True,
+                    load_file_name="tot_part_motion_meta_info.npy",
+                    shape_types=["03642806", "03636649", "02691156", "03001627", "02773838", "02954340", "03467517",
+                                 "03790512",
+                                 "04099429", "04225987", "03624134", "02958343", "03797390", "03948459", "03261776",
+                                 "04379243"],
+                    real_test=True, args=args
+                )
+
             if not (self.args.test_performance and not self.args.beam_search):
                 self.partnet_train_set = PartSegmentationMetaInfoDataset(
                     root=self.dataset_root, split='train', npoints=512, nmask=10, relrot=True,
@@ -263,6 +264,10 @@ class TrainerInstSegmentation(nn.Module):
         self.val_sampler = torch.utils.data.distributed.DistributedSampler(
             self.eval_set, num_replicas=hvd.size(), rank=hvd.rank())
 
+        if self.args.test_performance:
+            self.test_sampler = torch.utils.data.distributed.DistributedSampler(
+                self.test_set, num_replicas=hvd.size(), rank=hvd.rank())
+
         if not (self.args.test_performance and not self.args.beam_search):
             self.partnet_train_sampler = torch.utils.data.distributed.DistributedSampler(
                 self.partnet_train_set, num_replicas=hvd.size(), rank=hvd.rank())
@@ -279,6 +284,11 @@ class TrainerInstSegmentation(nn.Module):
         self.val_loader = data.DataLoader(
             self.eval_set, batch_size=self.batch_size,
             sampler=self.val_sampler, **kwargs)
+
+        if self.args.test_performance:
+            self.test_loader = data.DataLoader(
+                self.test_set, batch_size=self.batch_size,
+                sampler=self.test_sampler, **kwargs)
 
         if not (self.args.test_performance and not self.args.beam_search):
             self.partnet_train_loader = data.DataLoader(
@@ -346,7 +356,7 @@ class TrainerInstSegmentation(nn.Module):
         else:
             sampling_tree = DistributionTreeNode
 
-        if not args.debug and not args.pure_test:
+        if not args.debug and not args.pure_test and not args.test_performance:
             if not args.debug_arch:
                 print(f"Use less layers = {self.args.less_layers}")
                 self.sampling_tree_rt = sampling_tree(cur_depth=0 if (self.args.less_layers is False) else 1, nn_grp_opers=self.nn_grp_opers, nn_binary_opers=self.nn_binary_opers, nn_unary_opers=self.nn_unary_opers, nn_in_feat=self.nn_in_feats, args=args)
@@ -1360,6 +1370,8 @@ class TrainerInstSegmentation(nn.Module):
         if self.test_performance:
             baseline_loss_dict = []
 
+            baseline_loss_dict = [{'gop': 3, 'uop': 1, 'bop': 3, 'lft_chd': {'uop': 3, 'oper': 4}, 'rgt_chd': {'uop': 1, 'oper': 2}}]
+
             if len(baseline_loss_dict) > 0:
                 if not self.in_model_loss_model:
                     ''' LOAD loss model (head & optimizer) '''
@@ -1378,10 +1390,11 @@ class TrainerInstSegmentation(nn.Module):
                         self.model.intermediate_loss.load_head_optimizer_by_operation_dicts(
                             baseline_loss_dict, init_lr=self.init_lr, weight_decay=self.weight_decay)
 
-            eps_training_epochs = 400
+            eps_training_epochs = 200
 
         best_test_val_acc = 0.0
         best_val_acc = 0.0
+        best_eps = 0
         for i_iter in range(eps_training_epochs):
             train_acc, train_gt_loss = self._train_one_epoch(
                 i_iter + 1,
@@ -1395,15 +1408,34 @@ class TrainerInstSegmentation(nn.Module):
             )
 
             val_acc, val_gt_loss = self._test(
-                i_iter + 1, desc="val", # "partnet_val",
+                i_iter + 1, desc="val" if not self.args.test_performance else "partnet_val", # ,
                 conv_select_types=baseline_value.tolist(),
                 loss_selection_dict=baseline_loss_dict,
                 cur_model=self.model,
-                cur_loader=self.partnet_val_loader,
+                cur_loader=self.partnet_val_loader if not self.args.test_performance else self.val_loader,
                 # r=cur_model_sampled_r
             )
 
+            if self.args.test_performance:
+                test_acc, test_gt_loss = self._test(
+                    i_iter + 1, desc="test",
+                    conv_select_types=baseline_value.tolist(),
+                    loss_selection_dict=baseline_loss_dict,
+                    cur_model=self.model,
+                    cur_loader=self.test_loader
+                    # r=cur_model_sampled_r
+                )
+
+                if val_acc > best_val_acc:
+                    best_test_val_acc = test_acc
+                    best_val_acc = val_acc
+                    best_eps = i_iter
+
             best_val_acc += val_acc - train_acc
+
+        if self.args.test_performance:
+            print("[RESULT] Test IoU %.4f with best val IoU %.4f at epoch %d" % (best_test_val_acc, best_val_acc, best_eps))
+            exit(0)
 
         for i_iter in range(eps_training_epochs):
             train_acc, train_gt_loss = self._train_one_epoch(

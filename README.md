@@ -30,29 +30,25 @@ h5py==2.8.0
 
 ### Mobility-based part segmentation
 
-To optimize the supervision distribution space for the mobility-based part segmentation task, please use the following command (single machine):
+To create and optimize the intermediate supervision space for the mobility-based part segmentation task, please use the following command (single machine):
 
 ```shell
 CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/motion_seg_h_mb_cross.yaml
 ```
 
-for the default segmentation network with DGCNN backbone.
-
-To test PointNet++ backbone, replace `use_dgcnn` in `./cfgs/motion_seg_h_mb_cross.yaml` from `True` to `False` and use the same command stated as above.
+The default backbone is DGCNN. 
 
 ### Primitive fitting
 
-To optimize the supervision distribution space for the primitive fitting task, please use the following command:
+To create and optimize the supervision distribution space for the primitive fitting task, please use the following command:
 
 ```shell
-CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/prim_sea_h_mb_v2_tree.yaml
+CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/prim_seg_h_mb_cross_v2_tree.yaml
 ```
 
-for the default segmentation network with DGCNN backbone.
+The default backbone is DGCNN.
 
-To test PointNet++ backbone, replace `use_dgcnn` in `./cfgs/prim_sea_h_mb_v2_tree.yaml` from `True` to `False` and use the same command stated as above.
-
-To optimize the supervision distribution space for the first learning stage of primitive fitting task using HPNet-style network architecture, please use the following command:
+To optimize the supervision distribution space for the first stage of primitive fitting task using HPNet-style network architecture, please use the following command:
 
 ```shell
 CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/prim_seg_h_mb_v2_tree_optim_loss.yaml
@@ -60,33 +56,34 @@ CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip
 
 ### Sample supervision features from the optimized supervision feature distribution space
 
-Replace the `sv_params_path` variable in `load_and_sample.py` file to the path to saved distribution parameters (always have a name `dist_params.npy`). 
-
-Then use the following command:
+The following command samples a set of operations with relatively high sampling probabilities from the optimized supervision space (distribution parameters are stored in `dist_params.npy` under the logging directory):
 
 ```shell
-python load_and_sample.py -c cfgs/${your_config_file} --ty=loss
+python load_and_sample.py -c cfgs/${your_config_file} --ty=loss --params-path=${your_parameter_file}
 ```
-
-Sampled supervision features will be printed out on the screen.
 
 ### Greedy search for optimal supervison combinations
 
-Replace the `beam_search` variable in the config file from `False` to `True` and use the following command three times to select the optimal supervision combination: 
+After optimizing the supervision feature space, we should sample proper supervision features for further use. There are two strategies: 
+
+- Pick features with top sampling probabilities from the optimization distributions.
+- Sample a certain number of supervision features from the optimized space (*e.g.* 10), and then use the greedy search process to choose a combination of features from them. 
+
+For the second strategy, the parameter `beam_search` in the config file should be set to `True`. Then use the following commands three times to select a combination of supervision features: 
 
 ```shell
 CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/${your_config_file}
 ```
 
-You need to modify the function `beam_searh_for_best` in each trainer file to guide the selection process according to the algorithm described in the supplementarty material.
+The function `beam_searh_for_best` in each trainer file should be properly modified to guide the selection process according to the algorithm described in the supplementary material.
 
-## Regular training stage
+## Training stage
 
-After we have got the searched and selected supervision combination, modify the trainer file by plugging the selecte supervision combination into code lines. Then for each segmentation task: 
+To train a segmentation network with selected supervision features, the corresponding trainer file should be modified by plugging the selected features into proper code lines. then for each segmentation task: 
 
 ### Mobility-based part segmentation
 
-Use the following command to evaluate the selected supervision features:
+Use the following command to train the network together with selected supervision features: 
 
 ```shell
 CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/motion_seg_h_ob_cross_tst_perf.yaml
@@ -94,7 +91,7 @@ CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip
 
 ### Primitive fitting
 
-Use the following command to evaluate the selected supervision features:
+Use the following command to train the network together with selected supervision features: 
 
 ```shell
 CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/prim_seg_h_ob_v2_tree.yaml
@@ -110,7 +107,7 @@ Replace `resume` in motion_seg_inference to the path to saved model weights and 
 python -W ignore main_prm.py -c ./cfgs/motion_seg_inference.yaml
 ```
 
-Remember to select a free gpu in the config file.
+Remember to select a free GPU in the config file.
 
 ### Primitive fitting
 
@@ -120,17 +117,15 @@ Replace `resume` in `prim_inference.yaml` to the path to saved model weights and
 python -W ignore main_prm.py -c ./cfgs/prim_inference.yaml
 ```
 
-Remember to select a free gpu in the config file.
+Remember to select a free GPU in the config file.
 
 You should modify the file `prim_inference.py` to choose whether to use the clustering-based segmentation module or classification-based one.
 
-For clustering-based segmentation, use `_clustering_test` function; For another, use `_test` function.
-
-Remember to select a free gpu in the config file.
+For clustering-based segmentation, use the `_clustering_test` function; For another, use the `_test` function.
 
 ## Datasets
 
-All data should be put under the folder `data`. 
+[TODO: post-processed data]
 
 ### Mobility-based part segmentation
 
@@ -142,13 +137,30 @@ The test dataset is the same as the one used in [3] (which could be downloaded v
 
 We use the same dataset as the one used in [4]. We re-split the dataset to better test the domain generalization ability of the model.
 
-The dataset can be downloaded via [Traceparts](https://www.traceparts.com/) (original version). Put the file under `data/` folder and unzip it.
+The dataset can be downloaded via [Traceparts](https://www.traceparts.com/) (original version). 
+
+## Data
+
+### Mobility-based part segmentation
+
+## Checkpoints
+
+There are two kinds of checkpoints: 
+
+- Optimized distributions for the constructed supervision feature space
+- Pre-trained segmentation network using the searched intermediate supervisions
+
+### Mobility-based part segmentation
+
+Please download optimized distribution parameters and trained models from [here](https://drive.google.com/drive/folders/1oPocnUABlkRbO9wmwmKHCy2VM-BZrUDm?usp=sharing).
 
 ## Unsolved Problems
 
 - ***Unfriendly operations***: Sometimes the model will sample operations which would result in a supervision feature with very large absolute values. It would scarcely hinder the optimization process (since such supervisions would cause low metric values; thus, the model using them will not be passed to the next step), making the optimization process ugly. 
 
-  The problem could probably be solved by forbidding certain operation combinations/sequences. Feel free to submit a pull request if you can solve it. 
+  The problem could probably be solved by forbidding certain operation combinations/sequences. And please feel free to submit a pull request if you can solve it. 
+
+- ***Unnormalized rewards***: Reward values used for such three tasks may have different scales. It may affect the optimization process to some extent. They could probably be normalized using prior knowledge of generalization gaps of each task and its corresponding training data. 
 
 ## Reference
 

@@ -1,12 +1,12 @@
 import torch
 import torch.nn as nn
-from model.pointnetpp_segmodel_sea import PointNetPPInstSeg
+# from model.pointnetpp_segmodel_sea import PointNetPPInstSeg
 # from model.primitive_fitting_net_sea import PrimitiveFittingNet
 from model.primitive_fitting_net_sea_v2 import PrimitiveFittingNet
 
 # from datasets.Indoor3DSeg_dataset import Indoor3DSemSeg
-from datasets.instseg_dataset import InstSegmentationDataset
-from datasets.ABC_dataset import ABCDataset
+# from datasets.instseg_dataset import InstSegmentationDataset
+# from datasets.ABC_dataset import ABCDataset
 from datasets.ANSI_dataset import ANSIDataset
 from torch.nn import functional as F
 
@@ -17,7 +17,7 @@ from model.utils import iou
 import horovod.torch as hvd
 import torch.multiprocessing as mp
 from filelock import FileLock
-import time
+# import time
 import numpy as np
 from model.utils import batched_index_select, calculate_acc
 from .trainer_utils import MultiMultinomialDistribution
@@ -26,8 +26,8 @@ from model.loss_model_v5 import ComputingGraphLossModel
 from .trainer_utils import get_masks_for_seg_labels, compute_param_loss, DistributionTreeNode, DistributionTreeNodeV2
 from model.constants import *
 from model.loss_utils import compute_embedding_loss, compute_normal_loss, compute_nnl_loss
-from model.utils import mean_shift
-from model.loss_utils import compute_miou, npy
+# from model.utils import mean_shift
+# from model.loss_utils import compute_miou, npy
 # from model.abc_utils import compute_entropy, construction_affinity_matrix_normal
 import psutil
 
@@ -37,17 +37,18 @@ class TrainerPrimitiveFitting(nn.Module):
                  resume="", dp_ratio=0.5, args=None):
         super(TrainerPrimitiveFitting, self).__init__()
         # n_layers: int, feat_dims: list, n_samples: list, n_class: int, in_feat_dim: int
+        ''' Some basic configurations '''
         self.num_epochs = num_epochs
         if cuda is not None:
             self.device = torch.device("cuda:" + str(cuda)) if torch.cuda.is_available() else torch.device("cpu")
         else:
             self.device = torch.device("cpu")
-        print("Before init")
+        # print("Before init")
         hvd.init()
         torch.cuda.set_device(hvd.local_rank())
         # torch.cuda.manual_seed(42)
 
-        print("setting number threads...")
+        # print("setting number threads...")
         torch.set_num_threads(5)
 
         kwargs = {'num_workers': 5, 'pin_memory': True}
@@ -56,7 +57,9 @@ class TrainerPrimitiveFitting(nn.Module):
         if (kwargs.get('num_workers', 0) > 0 and hasattr(mp, '_supports_context') and
                 mp._supports_context and 'forkserver' in mp.get_all_start_methods()):
             kwargs['multiprocessing_context'] = 'forkserver'
+        ''' Some basic configurations '''
 
+        ''' Some arguments '''
         self.args = args
         self.batch_size = int(self.args.batch_size)
         self.num_epochs = int(self.args.epochs)
@@ -75,8 +78,10 @@ class TrainerPrimitiveFitting(nn.Module):
         self.n_max_instances = self.args.n_max_instances
         self.sea_interval = self.args.sea_interval
         self.test_performance = self.args.test_performance
-
         self.stage = int(self.args.stage)
+        self.nn_inter_loss = int(self.args.nn_inter_loss)
+        self.nn_base_inter_loss = 0
+        ''' Some arguments '''
 
         self.baseline_loss_dict = []
         tot_inter_feat_dim = 0
@@ -154,7 +159,7 @@ class TrainerPrimitiveFitting(nn.Module):
         self.model_C.cuda()
         #### GET model ####
 
-        ### SET datasets & data-loaders & data-samplers ####
+        ''' Set datasets '''
         self.dataset_root = self.args.dataset_root
         self.nmasks = int(self.args.nmasks)
         self.train_dataset = self.args.train_dataset
@@ -167,12 +172,16 @@ class TrainerPrimitiveFitting(nn.Module):
         test_prim_types = self.args.test_prim_types.split(",")
         self.test_prim_types = [int(tpt) for tpt in test_prim_types]
 
-        ### SET pure test setting ###
+        ''' Arg '''
         self.test_performance = self.args.test_performance
 
         with FileLock(os.path.expanduser("~/.horovod_lock")):
-            ansi_train_prim_types_1 = self.args.ansi_c_tr_prim_1.split(",")
-            self.ansi_train_prim_types_1 = [int(tpt) for tpt in ansi_train_prim_types_1]
+            try:
+                ansi_train_prim_types_1 = self.args.ansi_c_tr_prim_1.split(",")
+                self.ansi_train_prim_types_1 = [int(tpt) for tpt in ansi_train_prim_types_1]
+            except:
+                ansi_train_prim_types_1 = int(self.args.ansi_c_tr_prim_1)
+                self.ansi_train_prim_types_1 = [ansi_train_prim_types_1]
 
             ansi_train_prim_types_2 = self.args.ansi_c_tr_prim_2.split(",")
             self.ansi_train_prim_types_2 = [int(tpt) for tpt in ansi_train_prim_types_2]
@@ -203,7 +212,9 @@ class TrainerPrimitiveFitting(nn.Module):
                 train_test_split="train", noisy=False,
                 first_n=-1, fixed_order=False
             )
+        ''' Set datasets '''
 
+        ''' Set data samplers '''
         self.train_sampler_1 = torch.utils.data.distributed.DistributedSampler(
             self.train_set_1, num_replicas=hvd.size(), rank=hvd.rank())
 
@@ -212,7 +223,9 @@ class TrainerPrimitiveFitting(nn.Module):
 
         self.train_sampler_3 = torch.utils.data.distributed.DistributedSampler(
             self.train_set_3, num_replicas=hvd.size(), rank=hvd.rank())
+        ''' Set data samplers '''
 
+        ''' Set dataloaders '''
         self.train_loader_1 = data.DataLoader(
             self.train_set_1, batch_size=self.batch_size,
             sampler=self.train_sampler_1, **kwargs)
@@ -224,8 +237,9 @@ class TrainerPrimitiveFitting(nn.Module):
         self.train_loader_3 = data.DataLoader(
             self.train_set_3, batch_size=self.batch_size,
             sampler=self.train_sampler_3, **kwargs)
+        ''' Set dataloaders '''
 
-        ''' SET optimizer for the model '''
+        ''' Set optimizers '''
         lr_scaler = hvd.size()
         self.lr_scaler = lr_scaler
         if hvd.nccl_built():
@@ -279,9 +293,9 @@ class TrainerPrimitiveFitting(nn.Module):
         hvd.broadcast_optimizer_state(self.optimizer_B, root_rank=0)
         hvd.broadcast_parameters(self.model_C.state_dict(), root_rank=0)
         hvd.broadcast_optimizer_state(self.optimizer_C, root_rank=0)
-        ''' SET optimizer for the model '''
+        ''' Set optimizers '''
 
-        ''' SET working dirs '''
+        ''' Set working dirs '''
         self.model_dir = "task_{}_stage_{}_nn_inter_loss_{}_inst_part_seg_mixing_type_{}_init_lr_{}_bsz_{}_drop_50_lr_schedule_projection_more_bn_resume_{}".format(
             self.args.task,
             str(self.stage),
@@ -291,6 +305,8 @@ class TrainerPrimitiveFitting(nn.Module):
             str(batch_size),
             str(True if len(resume) > 0 else False)
         )
+        self.model_dir_B = self.model_dir + "_B"
+        self.model_dir_C = self.model_dir + "_C"
 
         with FileLock(os.path.expanduser("~/.horovod_lock")):
             if not os.path.exists("./prm_cache"):
@@ -304,9 +320,9 @@ class TrainerPrimitiveFitting(nn.Module):
         self.model_dir = "./prm_cache/" + self.model_dir
         self.model_dir_B = "./prm_cache/" + self.model_dir_B
         self.model_dir_C = "./prm_cache/" + self.model_dir_C
-        ''' SET working dirs '''
+        ''' Set working dirs '''
 
-        ''' SET loss model '''
+        ''' Set loss model '''
         self.loss_model_save_path = os.path.join(self.model_dir, "loss_model")
         self.loss_model_save_path_B = os.path.join(self.model_dir_B, "loss_model")
         self.loss_model_save_path_C = os.path.join(self.model_dir_C, "loss_model")
@@ -346,9 +362,9 @@ class TrainerPrimitiveFitting(nn.Module):
         self.loss_model.cuda()
         self.loss_model_B.cuda()
         self.loss_model_C.cuda()
-        ''' SET loss model '''
+        ''' Set loss model '''
 
-        ''' SET optimizer for loss model '''
+        ''' Set optimizer for loss model '''
         cur_optimizer = torch.optim.Adam(
             self.loss_model.parameters(),
             lr=self.init_lr,
@@ -404,30 +420,30 @@ class TrainerPrimitiveFitting(nn.Module):
         #### BROADCAST the model's state_dict and the optimizer's state_dict ####
         hvd.broadcast_optimizer_state(self.head_optimizer_C, root_rank=0)
         hvd.broadcast_parameters(self.loss_model_C.state_dict(), root_rank=0)
-        ''' SET optimizer for loss model '''
+        ''' Set optimizer for loss model '''
 
-        ''' SET related sampling distributions '''
+        ''' Set related sampling distributions '''
         # number of grouping operations, binary operations and unary operations
         self.nn_grp_opers = args.nn_grp_opers
         self.nn_binary_opers = args.nn_binary_opers
         self.nn_unary_opers = args.nn_unary_opers
         self.nn_in_feats = args.nn_in_feats
-        ''' SET related sampling distributions '''
+        ''' Set related sampling distributions '''
 
-        ''' SET sampling tree '''
+        ''' Set sampling tree '''
         if self.args.v2_tree:
             sampling_tree = DistributionTreeNodeV2
         else:
             sampling_tree = DistributionTreeNode
 
-        if self.args.inference or self.args.debug:
+        if self.args.debug or self.test_performance:
             self.sampling_tree_rt = None
         else:
             self.sampling_tree_rt = sampling_tree(cur_depth=0, nn_grp_opers=self.nn_grp_opers,
                                                   nn_binary_opers=self.nn_binary_opers, nn_unary_opers=self.nn_unary_opers,
                                                   nn_in_feat=self.nn_in_feats, args=args,
                                                   )
-        ''' SET related sampling distributions '''
+        ''' Set related sampling distributions '''
 
     def adjust_learning_rate_by_factor(self, scale_factor):
         for param_group in self.optimizer.param_groups:
@@ -535,7 +551,7 @@ class TrainerPrimitiveFitting(nn.Module):
         ret_dict = self.sampling_tree_rt.baseline_sampling(cur_depth=0)
         return ret_dict
 
-    ''' SAMPLE intermediate loss generation dictionaries '''
+    ''' Sample intermediate loss generation dictionaries '''
     def sample_intermediate_representation_generation_k_list(self, k=1, baseline=False):
         res = []
         if baseline:

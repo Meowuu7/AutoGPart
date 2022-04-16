@@ -1,7 +1,7 @@
 import numpy as np
 import os
 
-
+''' Utils from SPFN & HPNet '''
 def get_dataset_root(root_list, file_name=None):
     print(root_list)
     roots = root_list.split(";")
@@ -237,3 +237,94 @@ class Augment:
         if np.random.random() > 0.7:
             batch_data = random_scale_point_cloud(batch_data)
         return batch_data
+
+
+''' Some utils '''
+def padding_1(pos):
+    pad = np.array([1.], dtype=np.float).reshape(1, 1)
+    # print(pos.shape, pad.shape)
+    return np.concatenate([pos, pad], axis=1)
+
+def pc_normalize(pc):
+    l = pc.shape[0]
+    centroid = np.mean(pc, axis=0)
+    pc = pc - centroid
+    m = np.max(np.sqrt(np.sum(pc ** 2, axis=1)))
+    pc = pc / m
+    return pc
+
+
+def decode_rotation_info(rotate_info_encoding):
+    if rotate_info_encoding == 0:
+        return []
+    rotate_vec = []
+    if rotate_info_encoding <= 3:
+        temp_angle = np.reshape(np.array(np.random.rand(3)) * np.pi, (3, 1))
+        if rotate_info_encoding == 1:
+            line_vec = np.concatenate([
+                np.cos(temp_angle), np.zeros_like(temp_angle), np.sin(temp_angle),
+            ], axis=-1)
+        elif rotate_info_encoding == 2:
+            line_vec = np.concatenate([
+                np.cos(temp_angle), np.sin(temp_angle), np.zeros_like(temp_angle)
+            ], axis=-1)
+        else:
+            line_vec = np.concatenate([
+                np.zeros_like(temp_angle), np.cos(temp_angle), np.sin(temp_angle)
+            ], axis=-1)
+        return [line_vec[0], line_vec[1], line_vec[2]]
+    elif rotate_info_encoding <= 6:
+        base_rotate_vec = [np.array([1.0, 0.0, 0.0], dtype=np.float),
+                           np.array([0.0, 1.0, 0.0], dtype=np.float),
+                           np.array([0.0, 0.0, 1.0], dtype=np.float)]
+        if rotate_info_encoding == 4:
+            return [base_rotate_vec[0], base_rotate_vec[2]]
+        elif rotate_info_encoding == 5:
+            return [base_rotate_vec[0], base_rotate_vec[1]]
+        else:
+            return [base_rotate_vec[1], base_rotate_vec[2]]
+    else:
+        return []
+
+
+def rotate_by_vec_pts(un_w, p_x, bf_rotate_pos):
+
+    def get_zero_distance(p, xyz):
+        k1 = np.sum(p * xyz).item()
+        k2 = np.sum(xyz ** 2).item()
+        t = -k1 / (k2 + 1e-10)
+        p1 = p + xyz * t
+        # dis = np.sum(p1 ** 2).item()
+        return np.reshape(p1, (1, 3))
+
+    w = un_w / np.sqrt(np.sum(un_w ** 2, axis=0))
+    # w = np.array([0, 0, 1.0])
+    w_matrix = np.array(
+        [[0, -float(w[2]), float(w[1])], [float(w[2]), 0, -float(w[0])], [-float(w[1]), float(w[0]), 0]]
+    )
+
+    rng = 0.25
+    offset = 0.1
+
+    effi = np.random.uniform(-rng, rng, (1,)).item()
+    # effi = effis[eff_id].item()
+    if effi < 0:
+        effi -= offset
+    else:
+        effi += offset
+    theta = effi * np.pi
+    # rotation_matrix = np.exp(w_matrix * theta)
+
+    sin_theta = np.sin(theta)
+    cos_theta = np.cos(theta)
+
+    # rotation_matrix = np.eye(3) + w_matrix * sin_theta + (w_matrix ** 2) * (1. - cos_theta)
+    rotation_matrix = np.eye(3) + w_matrix * sin_theta + (w_matrix.dot(w_matrix)) * (1. - cos_theta)
+
+    # bf_rotate_pos = pcd_points[sem_label_to_idxes[rotate_idx][rotate_idx_inst]]
+
+    trans = get_zero_distance(p_x, un_w)
+
+    af_rotate_pos = np.transpose(np.matmul(rotation_matrix, np.transpose(bf_rotate_pos - trans, [1, 0])), [1, 0]) + trans
+
+    return af_rotate_pos, rotation_matrix, np.reshape(trans, (3, 1))

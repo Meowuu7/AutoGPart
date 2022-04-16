@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
-from model.pointnetpp_segmodel_sea import PointNetPPInstSeg
+# from model.pointnetpp_segmodel_sea import PointNetPPInstSeg
 from model.primitive_fitting_net_sea import PrimitiveFittingNet
 
 # from datasets.Indoor3DSeg_dataset import Indoor3DSemSeg
-from datasets.instseg_dataset import InstSegmentationDataset
+# from datasets.instseg_dataset import InstSegmentationDataset
 from datasets.ABC_dataset import ABCDataset
 from datasets.ANSI_dataset import ANSIDataset
 from torch.nn import functional as F
@@ -19,17 +19,16 @@ from filelock import FileLock
 import time
 import numpy as np
 from model.utils import batched_index_select, calculate_acc
-from .trainer_utils import MultiMultinomialDistribution
+# from .trainer_utils import MultiMultinomialDistribution
 import logging
 from model.loss_model_v5 import ComputingGraphLossModel
 from .trainer_utils import get_masks_for_seg_labels, compute_param_loss, DistributionTreeNode, DistributionTreeNodeV2, DistributionTreeNodeArch
-from model.constants import *
+# from model.constants import *
 
 
 class TrainerPrimitiveFitting(nn.Module):
     def __init__(self, dataset_root, num_points=512, batch_size=32, num_epochs=200, cuda=None, dataparallel=False,
-                 use_sgd=False, weight_decay_sgd=5e-4,
-                 resume="", dp_ratio=0.5, args=None):
+                 use_sgd=False, weight_decay_sgd=5e-4, resume="", dp_ratio=0.5, args=None):
         super(TrainerPrimitiveFitting, self).__init__()
         # n_layers: int, feat_dims: list, n_samples: list, n_class: int, in_feat_dim: int
         self.num_epochs = num_epochs
@@ -86,10 +85,8 @@ class TrainerPrimitiveFitting(nn.Module):
         self.n_samples = [int(ns) for ns in n_samples]
         self.map_feat_dim = int(self.args.map_feat_dim)
         self.n_layers = int(self.args.n_layers)
-        assert self.n_layers == len(
-            self.n_samples), f"Expect the times of down-sampling equal to n_layers, got n_layers = {self.n_layers}, times of down-sampling = {len(self.n_samples)}."
-        assert self.n_layers == len(
-            self.feat_dims), f"Expect the number of feature dims equal to n_layers, got n_layers = {self.n_layers}, number of dims = {len(self.feat_dims)}."
+        assert self.n_layers == len(self.n_samples), f"Expect the times of down-sampling equal to n_layers, got n_layers = {self.n_layers}, times of down-sampling = {len(self.n_samples)}."
+        assert self.n_layers == len(self.feat_dims), f"Expect the number of feature dims equal to n_layers, got n_layers = {self.n_layers}, number of dims = {len(self.feat_dims)}."
 
         ''' GET model & loss selection parameters '''
         conv_select_types = self.args.conv_select_types.split(",")
@@ -178,6 +175,16 @@ class TrainerPrimitiveFitting(nn.Module):
                     train_test_split="val", noisy=False,
                     first_n=-1, fixed_order=False
                 )
+
+                if self.test_performance:
+                    self.test_set = ANSIDataset(
+                        root=self.dataset_root, filename=self.test_dataset, opt=self.args, csv_path="test_models.csv",
+                        skip=1, fold=1,
+                        prim_types=self.ansi_test_prim_types, split_type=self.split_type, split_train_test=False,
+                        train_test_split="test", noisy=False,
+                        first_n=-1, fixed_order=False
+                    )
+
             else:
                 self.train_set = ABCDataset(
                     root=self.dataset_root, filename=self.train_dataset, opt=self.args, skip=1, fold=1,
@@ -196,6 +203,10 @@ class TrainerPrimitiveFitting(nn.Module):
         self.val_sampler = torch.utils.data.distributed.DistributedSampler(
             self.val_set, num_replicas=hvd.size(), rank=hvd.rank())
 
+        if self.test_performance:
+            self.test_sampler = torch.utils.data.distributed.DistributedSampler(
+                self.test_set, num_replicas=hvd.size(), rank=hvd.rank())
+
         self.train_loader = data.DataLoader(
             self.train_set, batch_size=self.batch_size,
             sampler=self.train_sampler, **kwargs)
@@ -203,6 +214,11 @@ class TrainerPrimitiveFitting(nn.Module):
         self.val_loader = data.DataLoader(
             self.val_set, batch_size=self.batch_size,
             sampler=self.val_sampler, **kwargs)
+
+        if self.test_performance:
+            self.test_loader = data.DataLoader(
+                self.test_set, batch_size=self.batch_size,
+                sampler=self.test_sampler, **kwargs)
         #### SET datasets & data-loaders & data-samplers ####
 
         ''' SET optimizer for the model '''
@@ -229,7 +245,7 @@ class TrainerPrimitiveFitting(nn.Module):
         hvd.broadcast_optimizer_state(self.optimizer, root_rank=0)
         ''' SET optimizer for the model '''
 
-        ''' SET working dirs '''
+        ''' SET working dirs ''' # working dirs?
         self.model_dir = "task_{}_nn_inter_loss_{}_inst_part_seg_mixing_type_{}_init_lr_{}_bsz_{}_drop_50_lr_schedule_projection_more_bn_resume_{}".format(
             self.args.task,
             str(self.nn_inter_loss),
@@ -300,7 +316,7 @@ class TrainerPrimitiveFitting(nn.Module):
 
         self.best_val_acc = -9999.0
 
-        if not args.debug and not args.pure_test:
+        if not args.debug and not args.pure_test and not self.test_performance:
             if not self.args.debug_arch:
                 self.sampling_tree_rt = sampling_tree(cur_depth=0, nn_grp_opers=self.nn_grp_opers,
                                                       nn_binary_opers=self.nn_binary_opers, nn_unary_opers=self.nn_unary_opers,
@@ -550,8 +566,11 @@ class TrainerPrimitiveFitting(nn.Module):
 
                 batch_momasks = batch_momasks
 
+                # print(f"seg_pred: {seg_pred.size()}, batch_momasks: {batch_momasks.size()}")
+
                 # try:
                 iou_value, gt_conf, cur_avg_recall = iou(seg_pred, batch_momasks, batch_conf)
+                # print(f"current iou: {iou_value}")
                 iou_value = iou_value.mean()
 
                 if self.args.with_conf_loss:
@@ -572,14 +591,20 @@ class TrainerPrimitiveFitting(nn.Module):
 
             neg_iou_loss = -1.0 * iou_value
 
-            loss = neg_iou_loss
+            # loss = neg_iou_loss
+
+            loss = 0.0
+            loss += neg_iou_loss
 
             if self.args.add_intermediat_loss:
                 loss += 0.1 * gt_l.mean()
+                # loss += gt_l.mean()
+            # else:
+            #     loss = neg_iou_loss
 
             # loss = neg_iou_loss
-            if seg_loss is not None and self.args.with_conf_loss:
-                loss += seg_loss.mean()
+            # if seg_loss is not None and self.args.with_conf_loss:
+            #     loss += seg_loss.mean()
 
             gt_loss.append(gt_l.detach().cpu().item() * bz)
 
@@ -883,12 +908,10 @@ class TrainerPrimitiveFitting(nn.Module):
                             best_model_test_acc = best_test_acc
                             best_model_idx = i_model
 
-                        logging.info(
-                            f"{i_model + 1}-th model in {i_eps + 1}-th search with base epoch {base_epoch}: reward = {best_test_acc}, selected loss dict list = {cur_selected_loss_dict_list}")
+                        logging.info(f"{i_model + 1}-th model in {i_eps + 1}-th search with base epoch {base_epoch}: reward = {best_test_acc}, selected loss dict list = {cur_selected_loss_dict_list}")
 
                         with open(os.path.join(self.model_dir, "logs.txt"), "a") as wf:
-                            wf.write(
-                                f"{i_model + 1}-th model in {i_eps + 1}-th search with base epoch {base_epoch}: reward = {best_test_acc}, selected loss dict list = {cur_selected_loss_dict_list}" + "\n")
+                            wf.write(f"{i_model + 1}-th model in {i_eps + 1}-th search with base epoch {base_epoch}: reward = {best_test_acc}, selected loss dict list = {cur_selected_loss_dict_list}" + "\n")
                             wf.close()
 
             if hvd.rank() == 0:
@@ -989,7 +1012,7 @@ class TrainerPrimitiveFitting(nn.Module):
         not_improved_num_epochs = 0
         if self.test_performance:
 
-            baseline_loss_dict = []
+            baseline_loss_dict = [] # put the loss dict here
             ''' LOAD model '''
 
             ''' LOAD loss model (head & optimizer) '''
@@ -1001,9 +1024,11 @@ class TrainerPrimitiveFitting(nn.Module):
             eps_training_epochs = 400
 
         best_test_val_acc = 0.0
+
         if self.test_performance or not self.test_performance:
-            if self.test_performance:
-                self.args.add_intermediat_loss = False
+            # if self.test_performance:
+                # self.args.add_intermediat_loss = False
+                # self.args.add_intermediat_loss = True
             for i_iter in range(eps_training_epochs):
                 train_acc, train_rigid_loss = self._train_one_epoch(
                     i_iter + 1,
@@ -1019,11 +1044,20 @@ class TrainerPrimitiveFitting(nn.Module):
                     # r=cur_model_sampled_r
                 )
 
+                if self.test_performance:
+                    test_acc, _ = self._test(
+                        i_iter + 1, desc="test",
+                        conv_select_types=baseline_value.tolist(),
+                        loss_selection_dict=baseline_loss_dict
+                        # r=cur_model_sampled_r
+                    )
+
                 best_test_acc = val_acc - train_acc
 
                 if self.test_performance:
                     if val_acc > best_val_acc:
                         best_val_acc = val_acc
+                        best_test_val_acc = test_acc
                         not_improved_num_epochs = 0
                         if hvd.rank() == 0:
                             torch.save(self.model.state_dict(), os.path.join(self.model_dir, "REIN_best_saved_model.pth"))
@@ -1035,9 +1069,9 @@ class TrainerPrimitiveFitting(nn.Module):
                                 wf.write(f"Adjusting learning rate by {0.7}.\n")
                                 wf.close()
                             self.adjust_learning_rate_by_factor(0.7)
-
-            print(f"Val acc = {best_val_acc}.")
-            return
+            if self.test_performance:
+                print(f"Val acc = {best_val_acc}, Test acc = {best_test_val_acc}.")
+                return
 
         baseline = best_test_acc
 

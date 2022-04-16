@@ -1,11 +1,14 @@
-task: sea_multi_loss_h_mb_v2_tree
+#task: sea_multi_loss_h_mb_v2_tree
+#task: motion_seg_sea_h_mb_cross
+task: sea_multi_loss_h_ob_v2_tree
 batch_size: 2
 epochs: 100
 use_sgd: False
 weight_decay_sgd: 1e-4
 dp_ratio: 0.5
 device: 0
-landmark_type: prim_seg_dgcnn
+#landmark_type: prim_seg_dgcnn
+landmark_type: prim_seg_pnpp
 cluster_seed_pts: 256
 stage: 1
 
@@ -19,10 +22,12 @@ part_aware:   True
 mix_style: False 
 use_uniconv: False
 use_dgcnn:  True
+#use_dgcnn:  False
 dgcnn_layers: 3
 backbone: "DGCNN"
 input_normal: True
 debug: False
+#debug: True
 debug_arch:  False
 
 less_layers: False
@@ -33,6 +38,7 @@ pnpp_n_layers: 3
 sampling_tolerance: 10
 
 dataset_root: ./data/traceparts_data
+#dataset_root: /share/xueyi/proj_data/traceparts_data
 augment: True
 if_normal_noise: False
 split_type: True
@@ -49,9 +55,11 @@ ansi_val_prim_types: 4,5
 ansi_test_prim_types: 2,6
 
 test_performance:  False
+#test_performance:  True
 not_clip: True
 
 nn_inter_loss: 1
+#nn_inter_loss: 2
 nn_part_level_operations: 10
 nn_point_level_feat: 6
 nn_feat_transformations: 5
@@ -86,7 +94,8 @@ up_feat_dims: 64,64,32
 n_samples: 1024,512,1
 radius: 0.2,0.4,0.4
 k: 48
-pred_nmasks: 30
+#pred_nmasks: 30
+pred_nmasks: 25
 n_max_instances: 24
 map_feat_dim: 32
 nseeds: 256
@@ -104,7 +113,7 @@ pure_test: False
 pure_test_types: "Chair;StorageFurniture;Lamp;Bag;Bed;Bottle;Bowl;Clock;Dishwasher;Display;Door;Earphone;Faucet;Hat;Keyboard;Knife;Laptop;Microwave;Mug;Refrigerator;Scissors;Table;TrashCan;Vase"
 
 
-cls_backbone: True
+cls_backbone: True # classification based segmentation output module
 with_normal: True
 with_conf_loss: False
 use_spfn: True
@@ -112,12 +121,12 @@ with_fitting_loss: False
 with_primpred_loss: False
 with_normalcst_loss: False
 with_parampred_loss: False
-with_rt_loss: False
+with_rt_loss: False # for mobility-based seg only
 r_loss_ratio: 1.0
 t_loss_ratio: 1.0
 param_weight: 0.1
 param_pred_dim: 22
-n_samples_inter_loss: 2048
+n_samples_inter_loss: 2048 # number of points involved in the intermediate supervision calculation process...
 
 sea_interval: 7
 

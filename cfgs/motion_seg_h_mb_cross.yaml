@@ -34,8 +34,8 @@ pnpp_n_layers: 3
 
 sampling_tolerance: 10
 
-#dataset_root: ./data/part-segmentation/data/motion_part_split_meta_info
-dataset_root: /share/xueyi/proj_data/part-segmentation
+dataset_root: ./data/part-segmentation
+#dataset_root: /share/xueyi/proj_data/part-segmentation
 augment: True
 if_normal_noise: False
 split_type: True
@@ -52,6 +52,7 @@ ansi_val_prim_types: 4,5
 ansi_test_prim_types: 2,6
 
 test_performance:  False
+#test_performance:  True
 not_clip: True
 
 nn_inter_loss: 1
@@ -90,14 +91,17 @@ n_samples: 1024,512,1
 radius: 0.2,0.4,0.4
 k: 48
 #pred_nmasks: 30
-pred_nmasks: 11
+#pred_nmasks: 11
+pred_nmasks: 3
 n_max_instances: 24
 map_feat_dim: 32
 nseeds: 256
 add_intermediat_loss: True
-seg_nmasks: 11
+#seg_nmasks: 11
+seg_nmasks: 3
 n_primitives: 4
-nmasks: 11
+#nmasks: 11
+nmasks: 3
 n_layers: 3
 local_unet_n_layers: 3
 in_feat_dim: 3
