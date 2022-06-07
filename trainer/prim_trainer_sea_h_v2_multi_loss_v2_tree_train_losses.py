@@ -856,8 +856,7 @@ class TrainerPrimitiveFitting(nn.Module):
 
                     ''' LOAD model '''
                     self.model.load_state_dict(
-                        torch.load(os.path.join(self.model_dir, "REIN_init_saved_model.pth"), map_location='cpu'
-                                   )
+                        torch.load(os.path.join(self.model_dir, "REIN_init_saved_model.pth"), map_location='cpu')
                     )
                     self.model.cuda()  # .to(self.device)
                     ''' LOAD model '''
@@ -1055,7 +1054,9 @@ class TrainerPrimitiveFitting(nn.Module):
 
         best_test_acc = 0.0
 
+        ''' Base model (if arch search is used) '''
         baseline_value = torch.tensor([0, 0, 0], dtype=torch.long)
+
         if self.test_performance:
 
             ''' SET loss dict '''

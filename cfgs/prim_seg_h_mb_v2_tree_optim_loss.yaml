@@ -25,6 +25,7 @@ input_normal: True
 debug: False
 #debug: True
 debug_arch:  False
+inference: False
 
 less_layers: False
 restrict_nei: True
@@ -33,8 +34,8 @@ pnpp_n_layers: 3
 
 sampling_tolerance: 10
 
-dataset_root: ./data/traceparts_data
-#dataset_root: /share/xueyi/proj_data/traceparts_data
+#dataset_root: ./data/traceparts_data
+dataset_root: /share/xueyi/proj_data/traceparts_data
 augment: True
 if_normal_noise: False
 split_type: True
@@ -50,7 +51,8 @@ ansi_train_prim_types: 1,3,0
 ansi_val_prim_types: 4,5
 ansi_test_prim_types: 2,6
 
-test_performance:  False
+#test_performance:  False
+test_performance:  True
 not_clip: True
 
 nn_inter_loss: 1

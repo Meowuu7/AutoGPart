@@ -1,12 +1,12 @@
-task: motion_seg_sea_h_mb_cross
-batch_size:  36
-epochs: 400
-use_sgd: False
+task: sea_multi_loss_h_v2_tree_optim_loss
+batch_size: 2
+epochs: 100
+use_sgd: False # we then use adam optimizer...
 weight_decay_sgd: 1e-4
 dp_ratio: 0.5
 device: 0
-landmark_type: motion_seg_dgcnn
-cluster_seed_pts: 256
+landmark_type: prim_seg_dgcnn_optim_loss
+cluster_seed_pts: 256 # cluster seed points? -->
 stage: 1
 
 beam_search: False
@@ -15,28 +15,27 @@ in_model_loss_model: True
 skip_global: False
 
 geometric_aware: True
-part_aware:   True 
-mix_style: False 
+part_aware:   True
+mix_style: False # do not use mixstyle
 use_uniconv: False
-use_dgcnn:  Ture
-dgcnn_layers: 3
+use_dgcnn:  True # set dgcnn as the backbone directly
+dgcnn_layers: 3 # dgcnn layers
 backbone: "DGCNN"
-input_normal: True
-#debug: True #
-debug: False
-debug_arch:  False
+input_normal: True # prim has normals has an additional input
+#debug: False
+debug: True # set to true if you do not want the space be constructed
+debug_arch:  False #
+inference: False # not the inference stage
 
-less_layers: False
-restrict_nei: True 
-
+less_layers: False #
+restrict_nei: True
 
 pnpp_n_layers: 3
 
 sampling_tolerance: 10
 
-dataset_root: ./data/part-segmentation
-#dataset_root: /share/xueyi/proj_data/part-segmentation
-#dataset_root: /mnt/sas-raid5-7.2T/xueyi/part-segmentation
+#dataset_root: ./data/traceparts_data
+dataset_root: /share/xueyi/proj_data/traceparts_data
 augment: True
 if_normal_noise: False
 split_type: True
@@ -53,10 +52,10 @@ ansi_val_prim_types: 4,5
 ansi_test_prim_types: 2,6
 
 test_performance:  False
-#test_performance:  True
+#test_performance:  True #
 not_clip: True
 
-nn_inter_loss: 1
+nn_inter_loss: 1 # number of loss sampled each time
 nn_part_level_operations: 10
 nn_point_level_feat: 6
 nn_feat_transformations: 5
@@ -91,18 +90,14 @@ up_feat_dims: 64,64,32
 n_samples: 1024,512,1
 radius: 0.2,0.4,0.4
 k: 48
-#pred_nmasks: 30
-pred_nmasks: 11
-#pred_nmasks: 3
+pred_nmasks: 30
 n_max_instances: 24
 map_feat_dim: 32
 nseeds: 256
 add_intermediat_loss: True
 seg_nmasks: 11
-#seg_nmasks: 3
 n_primitives: 4
 nmasks: 11
-#nmasks: 3
 n_layers: 3
 local_unet_n_layers: 3
 in_feat_dim: 3
@@ -116,7 +111,7 @@ pure_test_types: "Chair;StorageFurniture;Lamp;Bag;Bed;Bottle;Bowl;Clock;Dishwash
 cls_backbone: True
 with_normal: True
 with_conf_loss: False
-use_spfn: True
+use_spfn: True # spfn --- spfn's backbone right?
 with_fitting_loss: False
 with_primpred_loss: False
 with_normalcst_loss: False
@@ -126,7 +121,7 @@ r_loss_ratio: 1.0
 t_loss_ratio: 1.0
 param_weight: 0.1
 param_pred_dim: 22
-n_samples_inter_loss: 2048
+n_samples_inter_loss: 10000
 
 sea_interval: 7
 

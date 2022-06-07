@@ -189,6 +189,12 @@ class TrainerPrimitiveFitting(nn.Module):
             ansi_train_prim_types_3 = self.args.ansi_c_tr_prim_3.split(",")
             self.ansi_train_prim_types_3 = [int(tpt) for tpt in ansi_train_prim_types_3]
 
+            if self.test_performance:
+                self.ansi_train_prim_types_1 = self.ansi_train_prim_types_1 + self.ansi_train_prim_types_2 + self.ansi_train_prim_types_3
+
+            ansi_test_prim_types = self.args.ansi_test_prim_types.split(",")
+            self.ansi_test_prim_types = [int(tpt) for tpt in ansi_test_prim_types]
+
             self.train_set_1 = ANSIDataset(
                 root=self.dataset_root, filename=self.train_dataset, opt=self.args, csv_path="train_models.csv",
                 skip=1, fold=1,
@@ -200,7 +206,7 @@ class TrainerPrimitiveFitting(nn.Module):
             self.train_set_2 = ANSIDataset(
                 root=self.dataset_root, filename=self.train_dataset, opt=self.args, csv_path="train_models.csv",
                 skip=1, fold=1,
-                prim_types=self.ansi_train_prim_types_1, split_type=self.split_type, split_train_test=False,
+                prim_types=self.ansi_train_prim_types_2, split_type=self.split_type, split_train_test=False,
                 train_test_split="train", noisy=False,
                 first_n=-1, fixed_order=False
             )
@@ -208,10 +214,19 @@ class TrainerPrimitiveFitting(nn.Module):
             self.train_set_3 = ANSIDataset(
                 root=self.dataset_root, filename=self.train_dataset, opt=self.args, csv_path="train_models.csv",
                 skip=1, fold=1,
-                prim_types=self.ansi_train_prim_types_1, split_type=self.split_type, split_train_test=False,
+                prim_types=self.ansi_train_prim_types_3, split_type=self.split_type, split_train_test=False,
                 train_test_split="train", noisy=False,
                 first_n=-1, fixed_order=False
             )
+
+            if self.test_performance:
+                self.test_set = ANSIDataset(
+                    root=self.dataset_root, filename=self.test_dataset, opt=self.args, csv_path="test_models.csv",
+                    skip=1, fold=1,
+                    prim_types=self.ansi_test_prim_types, split_type=self.split_type, split_train_test=False,
+                    train_test_split="test", noisy=False,
+                    first_n=-1, fixed_order=False
+                )
         ''' Set datasets '''
 
         ''' Set data samplers '''
@@ -223,6 +238,10 @@ class TrainerPrimitiveFitting(nn.Module):
 
         self.train_sampler_3 = torch.utils.data.distributed.DistributedSampler(
             self.train_set_3, num_replicas=hvd.size(), rank=hvd.rank())
+
+        if self.test_performance:
+            self.test_sampler = torch.utils.data.distributed.DistributedSampler(
+                self.test_set, num_replicas=hvd.size(), rank=hvd.rank())
         ''' Set data samplers '''
 
         ''' Set dataloaders '''
@@ -237,6 +256,11 @@ class TrainerPrimitiveFitting(nn.Module):
         self.train_loader_3 = data.DataLoader(
             self.train_set_3, batch_size=self.batch_size,
             sampler=self.train_sampler_3, **kwargs)
+
+        if self.test_performance:
+            self.test_loader = data.DataLoader(
+                self.test_set, batch_size=self.batch_size if not self.args.inference else 1,
+                sampler=self.test_sampler, **kwargs)
         ''' Set dataloaders '''
 
         ''' Set optimizers '''
@@ -818,9 +842,9 @@ class TrainerPrimitiveFitting(nn.Module):
 
             avg_recall = []
 
-            feat_losses = []
-            push_losses = []
-            pull_losses = []
+            feat_losses = [] # feat_loss?
+            push_losses = [] # push_loss?
+            pull_losses = [] # pull_loss?
             normal_losses = []
             type_losses = []
             all_miou = []
@@ -867,7 +891,9 @@ class TrainerPrimitiveFitting(nn.Module):
                 # x = statistics['predicted_feat']
                 pred_type = statistics['type_per_point']
                 normal_per_point = statistics['normal_per_point']
-                feat_loss, pull_loss, push_loss, labels_to_pull_losses, labels_to_pull_losses_nn = compute_embedding_loss(x, batch_inst_seg, batch_primitives)
+                # compute embedding loss?
+                feat_loss, pull_loss, push_loss, labels_to_pull_losses, labels_to_pull_losses_nn = \
+                    compute_embedding_loss(x, batch_inst_seg, batch_primitives)
                 normal_loss = compute_normal_loss(normal_per_point, batch_normals)
                 type_loss = compute_nnl_loss(pred_type, batch_primitives)
 
@@ -969,25 +995,24 @@ class TrainerPrimitiveFitting(nn.Module):
         final_baseline = 0.0
 
         for i_eps in range(tot_eps):
-            best_model_test_acc = 0.0
+            best_model_test_acc = 0.0 # best model test acc
             best_model_idx = 0
             rewards = []
             sampled_loss_dicts = []
-            for i_model in range(n_models_per_eps):
-
+            for i_model in range(n_models_per_eps): #
                 # cur_selected_loss_dict = self.sample_intermediate_representation_generation()
+                ''' Sample and broadcast loss dict list '''
                 cur_selected_loss_dict_list = self.sample_intermediate_representation_generation_k_list(
                     k=self.nn_inter_loss - self.nn_base_inter_loss, baseline=False)
                 if hvd.rank() == 0:
                     logging.info(f"cur_selected_loss_dict = {cur_selected_loss_dict_list}")
                 # cur_selected_loss_tsr = self.from_dist_dict_to_dist_tsr(cur_selected_loss_dict)
                 cur_selected_loss_tsr = self.form_dist_dict_list_to_dist_tsr(cur_selected_loss_dict_list)
-
                 cur_selected_loss_tsr = hvd.broadcast(cur_selected_loss_tsr, root_rank=0)
-
                 # cur_selected_loss_dict = self.from_dist_tsr_to_dist_dict(cur_selected_loss_tsr)
                 cur_selected_loss_dict_list = self.from_dist_tsr_to_dist_dict_list(cur_selected_loss_tsr)
                 cur_selected_loss_dict_list = self.base_loss_dicts + cur_selected_loss_dict_list
+                ''' Sample and broadcast loss dict list '''
 
                 if hvd.rank() == 0:
                     logging.info(f"Sampled loss dict: {cur_selected_loss_dict_list}")
@@ -1019,7 +1044,7 @@ class TrainerPrimitiveFitting(nn.Module):
                     self.model_C.cuda()
                     ''' LOAD model '''
 
-                    ''' LOAD loss model '''
+                    ''' LOAD loss models '''
                     # no i_model parameter is passed to the function
                     self.loss_model.load_head_optimizer_by_operation_dicts(cur_selected_loss_dict_list,
                                                                            init_lr=self.init_lr,
@@ -1035,7 +1060,7 @@ class TrainerPrimitiveFitting(nn.Module):
                                                                              init_lr=self.init_lr,
                                                                              weight_decay=self.weight_decay)
                     self.loss_model_C.cuda()
-                    ''' LOAD loss model '''
+                    ''' LOAD loss models '''
                     best_test_acc = 0.0
 
                     for i_iter in range(eps_training_epochs):
@@ -1450,8 +1475,75 @@ class TrainerPrimitiveFitting(nn.Module):
 
         baseline_value = torch.tensor([0, 0, 0], dtype=torch.long)
 
-        best_feat_loss = 1000.0
+
+
         not_improved_num_epochs = 0
+
+        if self.test_performance:
+            eps_training_epochs = 100
+            # baseline_loss_dict = [{'gop': 2, 'uop': 1, 'bop': 16, 'lft_chd': {'uop': 2, 'oper': 3}, 'rgt_chd': {'gop': 0, 'uop': 3, 'bop': 1, 'lft_chd': {'uop': 4, 'oper': 3}, 'rgt_chd': {'uop': 5, 'oper': 2}}}]
+            baseline_loss_dict = [{'gop': 2, 'uop': 0, 'bop': 3, 'lft_chd': {'uop': 3, 'oper': 1}, 'rgt_chd': {'uop': 5, 'oper': 1}}]
+
+            ''' LOAD loss model (head & optimizer) '''
+            # LOAD heads for features prediction
+            self.loss_model.load_head_optimizer_by_operation_dicts(baseline_loss_dict, init_lr=self.init_lr,
+                                                                   weight_decay=self.weight_decay)
+            self.loss_model.cuda()
+            ''' LOAD loss model (head & optimizer) '''
+
+            best_feat_loss = 1000.0
+            best_test_feat_loss = 0.0
+            test_pull_loss = 0.0
+            for i_iter in range(eps_training_epochs):
+                train_feat_loss, train_pull_loss = self._train_one_epoch(
+                    i_iter + 1,
+                    conv_select_types=baseline_value.tolist(),
+                    loss_selection_dict=baseline_loss_dict,
+                    cur_model=self.model,
+                    cur_loss_model=self.loss_model,
+                    cur_loaders=[self.train_loader_1],
+                    cur_samplers=[self.train_sampler_1],
+                    cur_optimizer=self.optimizer,
+                    cur_head_optimizer=self.head_optimizer
+                )
+
+                val_feat_loss, val_pull_loss = self._test(
+                    i_iter + 1, desc="val",
+                    conv_select_types=baseline_value.tolist(),
+                    loss_selection_dict=baseline_loss_dict,
+                    cur_model=self.model,
+                    cur_loader=self.train_loader_3,
+                    cur_loss_model=self.loss_model
+                )
+
+                test_feat_loss, test_pull_loss = self._test(
+                    i_iter + 1, desc="test",
+                    conv_select_types=baseline_value.tolist(),
+                    loss_selection_dict=baseline_loss_dict,
+                    cur_model=self.model,
+                    cur_loader=self.test_loader, # test loader
+                    cur_loss_model=self.loss_model
+                )
+
+                if val_feat_loss < best_feat_loss:
+                    best_feat_loss = val_feat_loss
+                    best_test_feat_loss = test_feat_loss
+                    not_improved_num_epochs = 0
+                    if hvd.rank() == 0:
+                        torch.save(self.model.state_dict(), os.path.join(self.model_dir, "Loss_best_saved_model.pth"))
+                else:
+                    not_improved_num_epochs += 1
+                    if not_improved_num_epochs >= 20:
+                        self.adjust_learning_rate_by_factor(0.7)
+                        not_improved_num_epochs = 0
+                        print("Decrease the learning rate by 0.7...")
+                        with open(os.path.join(self.model_dir, "logs.txt"), "a") as wf:
+                            wf.write("Decrease the learning rate by 0.7...\n")
+                            wf.close()
+                best_test_acc += train_feat_loss - val_feat_loss
+            print(f"Best feat loss: {best_feat_loss}, best_test_feat_loss: {best_test_feat_loss}")
+            exit(0)
+
         for i_iter in range(eps_training_epochs):
             mem = psutil.virtual_memory()
             print(f"Before {i_iter}-th iter: mem.total = {mem.total}, mem.available = {mem.available}, mem.free = {mem.free}")

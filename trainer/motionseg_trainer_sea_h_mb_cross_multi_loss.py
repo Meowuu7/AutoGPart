@@ -1368,7 +1368,6 @@ class TrainerInstSegmentation(nn.Module):
             self.model.cuda()
 
         if self.test_performance:
-            baseline_loss_dict = []
 
             baseline_loss_dict = [{'gop': 3, 'uop': 1, 'bop': 3, 'lft_chd': {'uop': 3, 'oper': 4}, 'rgt_chd': {'uop': 1, 'oper': 2}}]
 
@@ -1392,51 +1391,57 @@ class TrainerInstSegmentation(nn.Module):
 
             eps_training_epochs = 200
 
-        best_test_val_acc = 0.0
-        best_val_acc = 0.0
-        best_eps = 0
-        for i_iter in range(eps_training_epochs):
-            train_acc, train_gt_loss = self._train_one_epoch(
-                i_iter + 1,
-                conv_select_types=baseline_value.tolist(),
-                loss_selection_dict=baseline_loss_dict,
-                desc="train",
-                cur_model=self.model,
-                cur_loaders=[self.train_loader],
-                cur_samplers=[self.train_sampler],
-                cur_optimizer=self.optimizer
-            )
+        if self.args.test_performance:
+            best_test_val_acc = 0.0
+            best_val_acc = 0.0
+            best_eps = 0
+            for i_iter in range(eps_training_epochs):
 
-            val_acc, val_gt_loss = self._test(
-                i_iter + 1, desc="val" if not self.args.test_performance else "partnet_val", # ,
-                conv_select_types=baseline_value.tolist(),
-                loss_selection_dict=baseline_loss_dict,
-                cur_model=self.model,
-                cur_loader=self.partnet_val_loader if not self.args.test_performance else self.val_loader,
-                # r=cur_model_sampled_r
-            )
+                train_acc, train_gt_loss = self._train_one_epoch(
+                    i_iter + 1,
+                    conv_select_types=baseline_value.tolist(),
+                    loss_selection_dict=baseline_loss_dict,
+                    desc="train",
+                    cur_model=self.model,
+                    cur_loaders=[self.train_loader],
+                    cur_samplers=[self.train_sampler],
+                    cur_optimizer=self.optimizer
+                )
 
-            if self.args.test_performance:
-                test_acc, test_gt_loss = self._test(
-                    i_iter + 1, desc="test",
+                val_acc, val_gt_loss = self._test(
+                    i_iter + 1, desc="val" if not self.args.test_performance else "partnet_val", # ,
                     conv_select_types=baseline_value.tolist(),
                     loss_selection_dict=baseline_loss_dict,
                     cur_model=self.model,
-                    cur_loader=self.test_loader
+                    cur_loader=self.partnet_val_loader if not self.args.test_performance else self.val_loader,
                     # r=cur_model_sampled_r
                 )
 
-                if val_acc > best_val_acc:
-                    best_test_val_acc = test_acc
-                    best_val_acc = val_acc
-                    best_eps = i_iter
+                if self.args.test_performance:
+                    test_acc, test_gt_loss = self._test(
+                        i_iter + 1, desc="test",
+                        conv_select_types=baseline_value.tolist(),
+                        loss_selection_dict=baseline_loss_dict,
+                        cur_model=self.model,
+                        cur_loader=self.test_loader
+                        # r=cur_model_sampled_r
+                    )
 
-            best_val_acc += val_acc - train_acc
+                    if val_acc > best_val_acc:
+                        best_test_val_acc = test_acc
+                        best_val_acc = val_acc
+                        best_eps = i_iter
+                    if hvd.rank() == 0:
+                        with open("log.txt", "a") as wf:
+                            wf.write(f"i_iter: {i_iter}, train acc: {train_acc}, val acc: {val_acc}, test_acc: {test_acc}\n")
+                            wf.close()
+                    # best_val_acc += val_acc - train_acc
 
-        if self.args.test_performance:
-            print("[RESULT] Test IoU %.4f with best val IoU %.4f at epoch %d" % (best_test_val_acc, best_val_acc, best_eps))
-            exit(0)
+                    if (i_iter % 20 == 0 or (eps_training_epochs - i_iter < 10)) and hvd.rank() == 0:
+                        print(f"Saving model at iter {i_iter}...")
+                        torch.save(self.model.state_dict(), os.path.join("ckpts", f"checkpoint_{i_iter}.pth"))
 
+        best_val_acc = 0.0
         for i_iter in range(eps_training_epochs):
             train_acc, train_gt_loss = self._train_one_epoch(
                 i_iter + 1,

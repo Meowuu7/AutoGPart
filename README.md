@@ -26,11 +26,22 @@ numpy==1.20.1
 h5py==2.8.0
 ```
 
-## Supervision search stage
+## Mobility-based part segmentation
 
-### Mobility-based part segmentation
+#### Data
 
-To create and optimize the intermediate supervision space for the mobility-based part segmentation task, please use the following command (single machine):
+```shell
+cd data
+mkdir part-segmentation
+```
+
+Download data from [here](https://drive.google.com/file/d/1XTjkFqOs-wbnQ90aFqxsxsH8ii80mmlR/view?usp=sharing) and put the file under the `data/part-segmentation` folder. 
+
+Unzip the downloaded data and zipped files under its subfolders as well. 
+
+#### Supervision search stage
+
+To create and optimize the intermediate supervision space for the mobility-based part segmentation task, please use the following command:
 
 ```shell
 CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/motion_seg_h_mb_cross.yaml
@@ -38,9 +49,39 @@ CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip
 
 The default backbone is DGCNN. 
 
-### Primitive fitting
+#### Sample supervision features from the optimized supervision feature distribution space
 
-To create and optimize the supervision distribution space for the primitive fitting task, please use the following command:
+The following command samples a set of operations with relatively high sampling probabilities from the optimized supervision space (distribution parameters are stored in `dist_params.npy` under the logging directory):
+
+```shell
+python load_and_sample.py -c cfgs/${your_config_file} --ty=loss --params-path=${your_parameter_file}
+```
+
+#### Training stage
+
+Insert supervisions to use in the corresponding trainer file and use the following command:
+
+```shell
+CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/motion_seg_h_mb_cross_tst_perf.yaml
+```
+
+#### Checkpoints
+
+Please download optimized distribution parameters and trained models from [here](https://drive.google.com/drive/folders/1oPocnUABlkRbO9wmwmKHCy2VM-BZrUDm?usp=sharing).
+
+## Primitive fitting
+
+#### Data
+
+TBD
+
+We use the same dataset as the one used in [4]. We re-split the dataset to better test the domain generalization ability of the model.
+
+The dataset can be downloaded via [Traceparts](https://www.traceparts.com/) (original version).
+
+#### Supervision search stage
+
+To create and optimize the intermediate supervision space for the primitive fitting task, please use the following command:
 
 ```shell
 CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/prim_seg_h_mb_cross_v2_tree.yaml
@@ -54,7 +95,7 @@ To optimize the supervision distribution space for the first stage of primitive 
 CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/prim_seg_h_mb_v2_tree_optim_loss.yaml
 ```
 
-### Sample supervision features from the optimized supervision feature distribution space
+#### Sample supervision features from the optimized supervision feature distribution space
 
 The following command samples a set of operations with relatively high sampling probabilities from the optimized supervision space (distribution parameters are stored in `dist_params.npy` under the logging directory):
 
@@ -62,54 +103,15 @@ The following command samples a set of operations with relatively high sampling 
 python load_and_sample.py -c cfgs/${your_config_file} --ty=loss --params-path=${your_parameter_file}
 ```
 
-### Greedy search for optimal supervison combinations
+#### Training stage
 
-After optimizing the supervision feature space, we should sample proper supervision features for further use. There are two strategies: 
-
-- Pick features with top sampling probabilities from the optimization distributions.
-- Sample a certain number of supervision features from the optimized space (*e.g.* 10), and then use the greedy search process to choose a combination of features from them. 
-
-For the second strategy, the parameter `beam_search` in the config file should be set to `True`. Then use the following commands three times to select a combination of supervision features: 
-
-```shell
-CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/${your_config_file}
-```
-
-The function `beam_searh_for_best` in each trainer file should be properly modified to guide the selection process according to the algorithm described in the supplementary material.
-
-## Training stage
-
-To train a segmentation network with selected supervision features, the corresponding trainer file should be modified by plugging the selected features into proper code lines. then for each segmentation task: 
-
-### Mobility-based part segmentation
-
-Use the following command to train the network together with selected supervision features: 
-
-```shell
-CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/motion_seg_h_ob_cross_tst_perf.yaml
-```
-
-### Primitive fitting
-
-Use the following command to train the network together with selected supervision features: 
+Insert supervisions to use in the corresponding trainer file and use the following command:
 
 ```shell
 CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/prim_seg_h_ob_v2_tree.yaml
 ```
 
-## Inference stage
-
-### Mobility-based part segmentation
-
-Replace `resume` in motion_seg_inference to the path to saved model weights and use the following command to evaluate the trained model:
-
-```shell
-python -W ignore main_prm.py -c ./cfgs/motion_seg_inference.yaml
-```
-
-Remember to select a free GPU in the config file.
-
-### Primitive fitting
+#### Inference stage
 
 Replace `resume` in `prim_inference.yaml` to the path to saved model weights and use the following command to evaluate the trained model:
 
@@ -123,34 +125,9 @@ You should modify the file `prim_inference.py` to choose whether to use the clus
 
 For clustering-based segmentation, use the `_clustering_test` function; For another, use the `_test` function.
 
-## Datasets
+#### Checkpoints
 
-TODO: post-processed data
-
-### Mobility-based part segmentation
-
-We collect the training dataset and the auxiliary training dataset from [1,2] for the mobility-based part segmentation task. We infer mobility meta-data heuristically for parts in each shape. Original datasets can be downloaded from [ShapeNetPart](https://shapenet.cs.stanford.edu/ericyi/shapenetcore_partanno_v0.zip) and [PartNet](https://www.shapenet.or).
-
-The test dataset is the same as the one used in [3] (which could be downloaded via [PartMob](https://shapenet.cs.stanford.edu/ericyi/pretrained_model_partmob.zip)). We use the trained flow estimation model to estimate flow for each shape and save the data with coordinate information for spare time. During the inference, we directly use the estimated flow.
-
-### Primitive fitting
-
-We use the same dataset as the one used in [4]. We re-split the dataset to better test the domain generalization ability of the model.
-
-The dataset can be downloaded via [Traceparts](https://www.traceparts.com/) (original version). 
-
-## Checkpoints
-
-There are two kinds of checkpoints: 
-
-- Optimized distributions for the constructed supervision feature space
-- Pre-trained segmentation network using the searched intermediate supervisions
-
-### Mobility-based part segmentation
-
-Please download optimized distribution parameters and trained models from [here](https://drive.google.com/drive/folders/1oPocnUABlkRbO9wmwmKHCy2VM-BZrUDm?usp=sharing).
-
-### Primitive fitting
+TBD
 
 Please download optimized distribution parameters and trained models from [here](https://drive.google.com/drive/folders/1bDF81h-ATSdiejnU888f7IihEkNhXH9r?usp=sharing).
 

@@ -373,7 +373,6 @@ class PartSegmentationMetaInfoDataset(data.Dataset):
                 'pc1_af_rel': pc1_af_rel[permidx, :], # Pos1 after relative transformation between aprts
                 'pc1': pc1[permidx, :] # Original Pos1
             }
-
         else:
             chosen_num_moving_parts = 1
             pc1 = copy.deepcopy(self.data['pc1'][index])
