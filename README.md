@@ -28,7 +28,7 @@ h5py==2.8.0
 
 ## Mobility-based part segmentation
 
-#### Data
+### Data
 
 ```shell
 cd data
@@ -39,7 +39,7 @@ Download data from [here](https://drive.google.com/file/d/1XTjkFqOs-wbnQ90aFqxsx
 
 Unzip the downloaded data and zipped files under its subfolders as well. 
 
-#### Supervision search stage
+### Supervision search stage
 
 To create and optimize the intermediate supervision space for the mobility-based part segmentation task, please use the following command:
 
@@ -50,7 +50,7 @@ CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip
 
 The default backbone is DGCNN. 
 
-#### Sample supervision features from the optimized supervision feature distribution space
+### Sample supervision features from the optimized supervision feature distribution space
 
 The following command samples a set of operations with relatively high sampling probabilities from the optimized supervision space (distribution parameters are stored in `dist_params.npy` under the logging directory):
 
@@ -58,7 +58,7 @@ The following command samples a set of operations with relatively high sampling 
 python load_and_sample.py -c cfgs/${your_config_file} --ty=loss --params-path=${your_parameter_file}
 ```
 
-#### Training stage
+### Training stage
 
 Insert supervisions to use in the corresponding trainer file and use the following command:
 
@@ -66,7 +66,7 @@ Insert supervisions to use in the corresponding trainer file and use the followi
 CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/motion_seg_h_mb_cross_tst_perf.yaml
 ```
 
-#### Test stage
+### Test stage
 
 Change the `resume` argument in the `./cfgs/motion_seg_h_mb_cross_pure_test_perf.yaml` file to the saved model's checkpoint to test and run the following command:
 
@@ -74,18 +74,18 @@ Change the `resume` argument in the `./cfgs/motion_seg_h_mb_cross_pure_test_perf
 CUDA_VISIBLE_DEVICES=${devices} horovodrun -np 1  -H ${your_machine_ip}:1 python -W ignore main_prm.py -c ./cfgs/motion_seg_h_mb_cross_pure_test_perf.yaml
 ```
 
-#### Checkpoints
+### Checkpoints
 
 Please download optimized distribution parameters and trained models from [here](https://drive.google.com/drive/folders/1oPocnUABlkRbO9wmwmKHCy2VM-BZrUDm?usp=sharing).
 
-#### Comments
+### Comments
 
 - We change the number of segmentations sampled for each training shape from at most 5 to at most 2 for release.
 - The model's performance would be influenced by the number of GPUs used in the training stage. We test on 4 GPUs.
 
 ## Primitive fitting
 
-#### Data
+### Data
 
 TBD
 
@@ -93,7 +93,7 @@ We use the same dataset as the one used in [4]. We re-split the dataset to bette
 
 The dataset can be downloaded via [Traceparts](https://www.traceparts.com/) (original version).
 
-#### Supervision search stage
+### Supervision search stage
 
 To create and optimize the intermediate supervision space for the primitive fitting task, please use the following command:
 
@@ -109,7 +109,7 @@ To optimize the supervision distribution space for the first stage of primitive 
 CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/prim_seg_h_mb_v2_tree_optim_loss.yaml
 ```
 
-#### Sample supervision features from the optimized supervision feature distribution space
+### Sample supervision features from the optimized supervision feature distribution space
 
 The following command samples a set of operations with relatively high sampling probabilities from the optimized supervision space (distribution parameters are stored in `dist_params.npy` under the logging directory):
 
@@ -117,7 +117,7 @@ The following command samples a set of operations with relatively high sampling 
 python load_and_sample.py -c cfgs/${your_config_file} --ty=loss --params-path=${your_parameter_file}
 ```
 
-#### Training stage
+### Training stage
 
 Insert supervisions to use in the corresponding trainer file and use the following command:
 
@@ -125,7 +125,7 @@ Insert supervisions to use in the corresponding trainer file and use the followi
 CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/prim_seg_h_ob_v2_tree.yaml
 ```
 
-#### Inference stage
+### Inference stage
 
 Replace `resume` in `prim_inference.yaml` to the path to saved model weights and use the following command to evaluate the trained model:
 
@@ -139,7 +139,7 @@ You should modify the file `prim_inference.py` to choose whether to use the clus
 
 For clustering-based segmentation, use the `_clustering_test` function; For another, use the `_test` function.
 
-#### Checkpoints
+### Checkpoints
 
 TBD
 
