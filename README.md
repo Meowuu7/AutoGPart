@@ -74,13 +74,14 @@ Change the `resume` argument in the `./cfgs/motion_seg_h_mb_cross_pure_test_perf
 CUDA_VISIBLE_DEVICES=${devices} horovodrun -np 1  -H ${your_machine_ip}:1 python -W ignore main_prm.py -c ./cfgs/motion_seg_h_mb_cross_pure_test_perf.yaml
 ```
 
-#### Comments
-- We change the number of segmentations sampled for each training shape from at most 5 to at most 2 for release.
-- The model's performance would be influenced by the number of GPUs used in the training stage. We test on 4 GPUs.
-
 #### Checkpoints
 
 Please download optimized distribution parameters and trained models from [here](https://drive.google.com/drive/folders/1oPocnUABlkRbO9wmwmKHCy2VM-BZrUDm?usp=sharing).
+
+#### Comments
+
+- We change the number of segmentations sampled for each training shape from at most 5 to at most 2 for release.
+- The model's performance would be influenced by the number of GPUs used in the training stage. We test on 4 GPUs.
 
 ## Primitive fitting
 
