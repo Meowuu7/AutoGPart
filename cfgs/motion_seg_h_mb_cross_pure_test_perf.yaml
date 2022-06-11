@@ -100,9 +100,10 @@ n_layers: 3
 local_unet_n_layers: 3
 in_feat_dim: 3
 use_normal_loss: True
+#resume: "./ckpts_4/checkpoint_with_inter_loss.pth"
 resume: ""
 
-pure_test: False
+pure_test: True
 pure_test_types: "Chair;StorageFurniture;Lamp;Bag;Bed;Bottle;Bowl;Clock;Dishwasher;Display;Door;Earphone;Faucet;Hat;Keyboard;Knife;Laptop;Microwave;Mug;Refrigerator;Scissors;Table;TrashCan;Vase"
 
 

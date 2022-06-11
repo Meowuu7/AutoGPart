@@ -237,8 +237,8 @@ class PartSegmentationMetaInfoDataset(data.Dataset):
                     inst_part_idx_to_part_idx_to_meta_info[k]['points_idx'].shape[0] > 30)]
                 if len(mov_inst_part_idx) > 0:
                     chosen_num_moving_parts = np.random.choice(len(mov_inst_part_idx), 1).item() + 1
-                    # chosen_num_moving_parts = min(chosen_num_moving_parts, 4)
-                    chosen_num_moving_parts = min(chosen_num_moving_parts, 1)
+                    chosen_num_moving_parts = min(chosen_num_moving_parts, 4)
+                    # chosen_num_moving_parts = min(chosen_num_moving_parts, 1)
                     chosen_mov_inst_new_idx = np.random.choice(len(mov_inst_part_idx), chosen_num_moving_parts, replace=False)
 
                     cur_mov_pts_number = 0

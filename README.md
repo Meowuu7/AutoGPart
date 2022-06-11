@@ -47,6 +47,7 @@ To create and optimize the intermediate supervision space for the mobility-based
 CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/motion_seg_h_mb_cross.yaml
 ```
 
+
 The default backbone is DGCNN. 
 
 #### Sample supervision features from the optimized supervision feature distribution space
@@ -64,6 +65,18 @@ Insert supervisions to use in the corresponding trainer file and use the followi
 ```shell
 CUDA_VISIBLE_DEVICES=${devices} horovodrun -np ${n_device}  -H ${your_machine_ip}:${n_device} python -W ignore main_prm.py -c ./cfgs/motion_seg_h_mb_cross_tst_perf.yaml
 ```
+
+#### Test stage
+
+Change the `resume` argument in the `./cfgs/motion_seg_h_mb_cross_pure_test_perf.yaml` file to the saved model's checkpoint to test and run the following command:
+
+```shell
+CUDA_VISIBLE_DEVICES=${devices} horovodrun -np 1  -H ${your_machine_ip}:1 python -W ignore main_prm.py -c ./cfgs/motion_seg_h_mb_cross_pure_test_perf.yaml
+```
+
+#### Comments
+- We change the number of segmentations sampled for each training shape from at most 5 to at most 2 for release.
+- The model's performance would be influenced by the number of GPUs used in the training stage. We test on 4 GPUs.
 
 #### Checkpoints
 

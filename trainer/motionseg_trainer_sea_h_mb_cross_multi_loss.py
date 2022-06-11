@@ -20,6 +20,7 @@ import logging
 from model.loss_model_v5 import ComputingGraphLossModel
 from .trainer_utils import get_masks_for_seg_labels, compute_param_loss, DistributionTreeNode, DistributionTreeNodeV2, DistributionTreeNodeArch
 
+DATA_SAVE_PATH = "/mnt/sas-raid5-7.2T/xueyi/ckpt/prm_cache"
 
 class TrainerInstSegmentation(nn.Module):
     def __init__(self, dataset_root, num_points=512, batch_size=32, num_epochs=200, cuda=None, dataparallel=False,
@@ -108,14 +109,23 @@ class TrainerInstSegmentation(nn.Module):
         )
         self.model_dir_B = self.model_dir + "_B"
         with FileLock(os.path.expanduser("~/.horovod_lock")):
-            if not os.path.exists("./prm_cache"):
-                os.mkdir("./prm_cache")
-            if not os.path.exists(os.path.join("./prm_cache", self.model_dir)):
-                os.mkdir(os.path.join("./prm_cache", self.model_dir))
-            if not os.path.exists(os.path.join("./prm_cache", self.model_dir_B)):
-                os.mkdir(os.path.join("./prm_cache", self.model_dir_B))
-        self.model_dir = "./prm_cache/" + self.model_dir
-        self.model_dir_B = "./prm_cache/" + self.model_dir_B
+            # if not os.path.exists("./prm_cache"):
+            #     os.mkdir("./prm_cache")
+            # if not os.path.exists(os.path.join("./prm_cache", self.model_dir)):
+            #     os.mkdir(os.path.join("./prm_cache", self.model_dir))
+            # if not os.path.exists(os.path.join("./prm_cache", self.model_dir_B)):
+            #     os.mkdir(os.path.join("./prm_cache", self.model_dir_B))
+
+            if not os.path.exists(DATA_SAVE_PATH):
+                os.mkdir(DATA_SAVE_PATH)
+            if not os.path.exists(os.path.join(DATA_SAVE_PATH, self.model_dir)):
+                os.mkdir(os.path.join(DATA_SAVE_PATH, self.model_dir))
+            if not os.path.exists(os.path.join(DATA_SAVE_PATH, self.model_dir_B)):
+                os.mkdir(os.path.join(DATA_SAVE_PATH, self.model_dir_B))
+            # self.model_dir = "./prm_cache/" + self.model_dir
+            # self.model_dir_B = "./prm_cache/" + self.model_dir_B
+        self.model_dir = os.path.join(DATA_SAVE_PATH, self.model_dir) # set model_dir...
+        self.model_dir_B = os.path.join(DATA_SAVE_PATH, self.model_dir_B) # set model_dir_B...
         ''' SET working dirs '''
 
         ''' SET working dir for the loss model '''
@@ -461,7 +471,6 @@ class TrainerInstSegmentation(nn.Module):
             cur_oper_dict["gop"] = cur_opers[1]
         if cur_opers[0] != -1:
             cur_oper_dict["uop"] = cur_opers[0]
-
         if cur_opers[2] != -1:
             cur_oper_dict["bop"] = cur_opers[2]
         if cur_opers[3] != -1:
@@ -1323,9 +1332,47 @@ class TrainerInstSegmentation(nn.Module):
                 wf.close()
         return topk_dicts
 
+    def pure_test_func(self):
+        ''' LOAD model '''
+
+        state_dicts = torch.load(self.resume, map_location="cpu")
+        ori_dict = state_dicts
+        part_dict = dict()
+        model_dict = self.model.state_dict()
+        tot_params_n = 0
+        for k in ori_dict:
+            if k in model_dict:  #### have the value
+                v = ori_dict[k]
+                part_dict[k] = v
+                tot_params_n += 1
+        model_dict.update(part_dict)
+        self.model.load_state_dict(model_dict)
+
+        # self.model.load_state_dict(
+        #     torch.load(os.path.join(self.resume),
+        #                map_location='cpu'
+        #                )
+        # )
+
+        self.model.cuda()  # .to(self.device)
+        self.model.eval()
+        test_acc, test_gt_loss = self._test(
+            1, desc="test",
+            conv_select_types=[],
+            loss_selection_dict=[],
+            cur_model=self.model,
+            cur_loader=self.test_loader
+        )
+        print(f"test: {test_acc}")
+        return
+
     def train_all(self):
         # baseline_value = torch.tensor([1, 1, 0], dtype=torch.long)
         baseline_value = torch.tensor([0, 0, 0], dtype=torch.long)
+
+        if self.pure_test:
+            self.pure_test_func()
+            return
 
         if self.args.beam_search:
             baseline_value = torch.tensor([1, 1, 0], dtype=torch.long)
@@ -1392,9 +1439,13 @@ class TrainerInstSegmentation(nn.Module):
             eps_training_epochs = 200
 
         if self.args.test_performance:
+
+            # if not os.path.exists(os.path.join(self.model_dir, "ckpts")):
+            #     os.mkdir(os.path.join(self.model_dir, "ckpts"))
             best_test_val_acc = 0.0
             best_val_acc = 0.0
             best_eps = 0
+            not_improved_num_epochs = 0
             for i_iter in range(eps_training_epochs):
 
                 train_acc, train_gt_loss = self._train_one_epoch(
@@ -1431,17 +1482,57 @@ class TrainerInstSegmentation(nn.Module):
                         best_test_val_acc = test_acc
                         best_val_acc = val_acc
                         best_eps = i_iter
+                        not_improved_num_epochs = 0
+                        if hvd.rank() == 0:
+                            print(f"Saving best model with best_val_loss: {best_val_acc}")
+                            torch.save(self.model.state_dict(), os.path.join(self.model_dir, "REIN_best_saved_model.pth"))
+                    # else:
+                    #     not_improved_num_epochs += 1
+                    #     if not_improved_num_epochs >= 20:
+                    #         not_improved_num_epochs = 0
+                    #         with open(os.path.join(self.model_dir, "logs.txt"), "a") as wf:
+                    #             wf.write(f"Adjusting learning rate by {0.7}\n")
+                    #             wf.close()
+                    #         self.adjust_learning_rate_by_factor(0.7)
                     if hvd.rank() == 0:
-                        with open("log.txt", "a") as wf:
+                        with open(os.path.join(self.model_dir, "logs.txt"), "a") as wf:
                             wf.write(f"i_iter: {i_iter}, train acc: {train_acc}, val acc: {val_acc}, test_acc: {test_acc}\n")
                             wf.close()
                     # best_val_acc += val_acc - train_acc
 
                     if (i_iter % 20 == 0 or (eps_training_epochs - i_iter < 10)) and hvd.rank() == 0:
                         print(f"Saving model at iter {i_iter}...")
-                        torch.save(self.model.state_dict(), os.path.join("ckpts", f"checkpoint_{i_iter}.pth"))
+                        # save to the model_dir...
+                        # torch.save(self.model.state_dict(), os.path.join("ckpts", f"checkpoint_{i_iter}.pth"))
+                        torch.save(self.model.state_dict(), os.path.join(self.model_dir, f"checkpoint_{i_iter}.pth"))
+
+            exit(0)
 
         best_val_acc = 0.0
+
+        baseline_loss_dict = []
+        for i_iter in range(eps_training_epochs):
+            train_acc, train_gt_loss = self._train_one_epoch(
+                i_iter + 1,
+                conv_select_types=baseline_value.tolist(),
+                loss_selection_dict=baseline_loss_dict,
+                desc="train",
+                cur_model=self.model,
+                cur_loaders=[self.train_loader],
+                cur_samplers=[self.train_sampler],
+                cur_optimizer=self.optimizer
+            )
+
+            val_acc, val_gt_loss = self._test(
+                i_iter + 1, desc="val",  # ,
+                conv_select_types=baseline_value.tolist(),
+                loss_selection_dict=baseline_loss_dict,
+                cur_model=self.model,
+                cur_loader=self.partnet_val_loader,
+                # r=cur_model_sampled_r
+            )
+            best_val_acc += val_acc - train_acc
+
         for i_iter in range(eps_training_epochs):
             train_acc, train_gt_loss = self._train_one_epoch(
                 i_iter + 1,
