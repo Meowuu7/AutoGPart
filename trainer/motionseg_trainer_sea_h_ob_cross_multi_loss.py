@@ -1,15 +1,15 @@
 import torch
 import torch.nn as nn
-from model.pointnetpp_segmodel_sea import PointNetPPInstSeg
-from model.primitive_fitting_net_sea import PrimitiveFittingNet
+# from model.pointnetpp_segmodel_sea import PointNetPPInstSeg
+# from model.primitive_fitting_net_sea import PrimitiveFittingNet
 # from model.pointnetpp_segmodel_cls_sea import InstSegNet
 # from model.pointnetpp_segmodel_cls_sea_v2 import InstSegNet
 from model.motion_segmodel_cls_sea_v2 import InstSegNet
 
 # from datasets.Indoor3DSeg_dataset import Indoor3DSemSeg
-from datasets.instseg_dataset import InstSegmentationDataset
-from datasets.ABC_dataset import ABCDataset
-from datasets.ANSI_dataset import ANSIDataset
+# from datasets.instseg_dataset import InstSegmentationDataset
+# from datasets.ABC_dataset import ABCDataset
+# from datasets.ANSI_dataset import ANSIDataset
 from datasets.motionseg_dataset import PartSegmentationMetaInfoDataset
 from torch.nn import functional as F
 
@@ -20,16 +20,19 @@ from model.utils import iou
 import horovod.torch as hvd
 import torch.multiprocessing as mp
 from filelock import FileLock
-import time
-import numpy as np
-from model.utils import batched_index_select, calculate_acc
-from .trainer_utils import MultiMultinomialDistribution
+# import time
+# import numpy as np
+# # from model.utils import batched_index_select, calculate_acc
+# from .trainer_utils import MultiMultinomialDistribution
 import logging
 from model.loss_model_v5 import ComputingGraphLossModel
 from .trainer_utils import get_masks_for_seg_labels, compute_param_loss, DistributionTreeNode, DistributionTreeNodeV2, DistributionTreeNodeArch
-from datasets.partnet_dataset import PartNetInsSeg
-from model.loss_utils import get_one_hot
-from model.model_util import set_bn_not_training, set_grad_to_none
+# from datasets.partnet_dataset import PartNetInsSeg
+# from model.loss_utils import get_one_hot
+# from model.model_util import set_bn_not_training, set_grad_to_none
+
+DATA_SAVE_PATH = "/mnt/sas-raid5-7.2T/xueyi/ckpt/prm_cache"
+
 
 class TrainerInstSegmentation(nn.Module):
     def __init__(self, dataset_root, num_points=512, batch_size=32, num_epochs=200, cuda=None, dataparallel=False,
@@ -120,11 +123,16 @@ class TrainerInstSegmentation(nn.Module):
         )
 
         with FileLock(os.path.expanduser("~/.horovod_lock")):
-            if not os.path.exists("./prm_cache"):
-                os.mkdir("./prm_cache")
-            if not os.path.exists(os.path.join("./prm_cache", self.model_dir)):
-                os.mkdir(os.path.join("./prm_cache", self.model_dir))
-        self.model_dir = "./prm_cache/" + self.model_dir
+            if not os.path.exists(DATA_SAVE_PATH):
+                os.mkdir(DATA_SAVE_PATH)
+            if not os.path.exists(os.path.join(DATA_SAVE_PATH, self.model_dir)):
+                os.mkdir(os.path.join(DATA_SAVE_PATH, self.model_dir))
+            # if not os.path.exists(os.path.join(DATA_SAVE_PATH, self.model_dir_B)):
+            #     os.mkdir(os.path.join(DATA_SAVE_PATH, self.model_dir_B))
+
+        # self.model_dir = "./prm_cache/" + self.model_dir
+        self.model_dir = os.path.join(DATA_SAVE_PATH, self.model_dir)  # set model_dir... # model_dir xxx
+        # self.model_dir_B = os.path.join(DATA_SAVE_PATH, self.model_dir_B)  # set model_dir_B... # model_dir_B xxx
         ''' SET working dirs '''
 
         ''' SET working dir for loss model '''
@@ -1213,7 +1221,7 @@ class TrainerInstSegmentation(nn.Module):
 
         if self.test_performance:
 
-            baseline_loss_dict = []
+            baseline_loss_dict = [{'gop': 1, 'uop': 2, 'chd': {'uop': 5, 'oper': 1}}]
 
             if len(baseline_loss_dict) > 0:
 

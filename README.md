@@ -81,7 +81,7 @@ Please download optimized distribution parameters and trained models from [here]
 ### Comments
 
 - We change the number of segmentations sampled for each training shape from at most 5 to at most 2 for release.
-- The model's performance would be influenced by the number of GPUs used in the training stage. We test on 4 GPUs.
+- We test on 4 GPUs.
 
 ## Primitive fitting
 

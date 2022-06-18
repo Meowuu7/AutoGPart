@@ -1416,7 +1416,9 @@ class TrainerInstSegmentation(nn.Module):
 
         if self.test_performance:
 
-            baseline_loss_dict = [{'gop': 3, 'uop': 1, 'bop': 3, 'lft_chd': {'uop': 3, 'oper': 4}, 'rgt_chd': {'uop': 1, 'oper': 2}}]
+            baseline_loss_dict = [{'gop': 1, 'uop': 2, 'chd': {'uop': 5, 'oper': 1}}]
+
+            print(f"baseline_loss_dict: {baseline_loss_dict}!")
 
             if len(baseline_loss_dict) > 0:
                 if not self.in_model_loss_model:
