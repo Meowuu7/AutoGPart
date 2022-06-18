@@ -31,8 +31,7 @@ from .trainer_utils import get_masks_for_seg_labels, compute_param_loss, Distrib
 # from model.loss_utils import get_one_hot
 # from model.model_util import set_bn_not_training, set_grad_to_none
 
-DATA_SAVE_PATH = "/mnt/sas-raid5-7.2T/xueyi/ckpt/prm_cache"
-
+DATA_SAVE_PATH = "./ckpt/prm_cache"
 
 class TrainerInstSegmentation(nn.Module):
     def __init__(self, dataset_root, num_points=512, batch_size=32, num_epochs=200, cuda=None, dataparallel=False,
