@@ -87,11 +87,8 @@ Please download optimized distribution parameters and trained models from [here]
 
 ### Data
 
-TBD
-
-We use the same dataset as the one used in [4]. We re-split the dataset to better test the domain generalization ability of the model.
-
-The dataset can be downloaded via [Traceparts](https://www.traceparts.com/) (original version).
+- Step 1: Download the Traceparts data from [SPFN](https://github.com/lingxiaoli94/SPFN) repo. Put it under the `data/` folder. 
+- Step 2: Download data splitting from [Data Split](https://drive.google.com/file/d/1bp2NGcV4ST6Fb2flBAHZsFvj_wnFpZ9j/view?usp=sharing). Put it under the `data/traceparts_data` folder. Unzip the zip file to get data splitting files. 
 
 ### Supervision search stage
 
