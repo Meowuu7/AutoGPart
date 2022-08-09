@@ -148,15 +148,15 @@ Please download optimized distribution parameters from [here](https://drive.goog
 
 - ***Unnormalized rewards***: Reward values used for such three tasks may have different scales. It may affect the optimization process to some extent. They could probably be normalized using prior knowledge of generalization gaps of each task and its corresponding training data. 
 
-## Reference
-
-Part of the code is taken from [HPNet](https://github.com/SimingYan/HPNet), [SPFN](https://github.com/lingxiaoli94/SPFN), [Deep Part Induction](https://github.com/ericyi/articulated-part-induction), [PointNet2](https://github.com/charlesq34/pointnet2), [MixStyle](https://github.com/KaiyangZhou/mixstyle-release).
 
 ## License
 
 Our code and data are released under MIT License (see LICENSE file for details).
 
 
+## Reference
+
+Part of the code is taken from [HPNet](https://github.com/SimingYan/HPNet), [SPFN](https://github.com/lingxiaoli94/SPFN), [Deep Part Induction](https://github.com/ericyi/articulated-part-induction), [PointNet2](https://github.com/charlesq34/pointnet2), [MixStyle](https://github.com/KaiyangZhou/mixstyle-release).
 
 [1] Yi, L., Kim, V. G., Ceylan, D., Shen, I. C., Yan, M., Su, H., ... & Guibas, L. (2016). A scalable active framework for region annotation in 3d shape collections. *ACM Transactions on Graphics (ToG)*, *35*(6), 1-12.
 
