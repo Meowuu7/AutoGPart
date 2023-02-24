@@ -4,7 +4,7 @@ AutoGPart is a method that builds an intermediate supervision space to search fr
 
 This repository contains the PyTorch implementation of our paper: 
 
-[AutoGPart: Intermediate Supervision Search for Generalizable 3D Part Segmentation](https://arxiv.org/pdf/2203.06558.pdf), *Xueyi Liu*, *Xiaomeng Xu*, [*Anyi Rao*](https://anyirao.com), [*Chuang Gan*](https://people.csail.mit.edu/ganchuang/), [*Li Yi*](https://ericyi.github.io), CVPR 2022.
+[AutoGPart: Intermediate Supervision Search for Generalizable 3D Part Segmentation](https://arxiv.org/pdf/2203.06558.pdf), *Xueyi Liu*, *Xiaomeng Xu*, *Anyi Rao*, *Chuang Gan*, *Li Yi*, CVPR 2022.
 
 ![Screen Shot 2022-04-14 at 5.46.04 PM](./assets/overall-pipeline-23-1.png)
 
